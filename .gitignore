@@ -9,3 +9,6 @@ __pycache__/
 # 개발 메모·규칙 문서는 PC에만 둔다
 CLAUDE.md
 규칙/
+# 내 구글 시트 주소 (설치 파일에만 넣고 소스에는 올리지 않는다)
+_system/defaults.json
+가계부_v1.1.apk

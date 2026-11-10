@@ -24,7 +24,7 @@ import java.util.Locale;
 
 /** 가계부 화면. 화면 자체는 assets/index.html(WebView)이고, 자료는 Bridge를 거쳐 폰 안 SQLite에 저장한다. */
 public class MainActivity extends Activity {
-    static final String VERSION = "1.1";
+    static final String VERSION = "1.2";
     private static final int REQ_SAVE = 1, REQ_OPEN = 2;
     private WebView web;
     private String pendingCsv;
@@ -32,6 +32,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
+        applyDefaults();
         web = new WebView(this);
         setContentView(web);
         WebSettings s = web.getSettings();
@@ -41,6 +42,30 @@ public class MainActivity extends Activity {
         web.setWebViewClient(new WebViewClient());
         web.addJavascriptInterface(new Bridge(this), "Android");
         web.loadUrl("file:///android_asset/index.html");
+    }
+
+    /**
+     * 설치 파일에 들어 있는 기본값(assets/defaults.json — 빌드할 때 넣는다)을 처음 한 번 설정에 넣는다.
+     * 지금은 구글 시트 웹 앱 주소(sync_url)뿐. 주소 칸이 비어 있을 때만 넣고, 사용자가 이미 넣은 주소는 건드리지 않는다.
+     * 암호는 넣지 않는다(설치 파일이 공개돼 있어서) — 앱 설정에서 직접 입력한다.
+     */
+    private void applyDefaults() {
+        try {
+            Db db = Db.get(this);
+            ByteArrayOutputStream buf = new ByteArrayOutputStream();
+            try (InputStream is = getAssets().open("defaults.json")) {
+                byte[] tmp = new byte[4096];
+                int n;
+                while ((n = is.read(tmp)) > 0) buf.write(tmp, 0, n);
+            }
+            String url = new JSONObject(new String(buf.toByteArray(), StandardCharsets.UTF_8)).optString("sync_url");
+            // 같은 기본 주소는 한 번만 넣는다(default_url에 적어 둠). 그 뒤 사용자가 지우거나 바꾼 것은 그대로 둔다
+            if (url.isEmpty() || url.equals(db.setting("default_url", ""))) return;
+            if (db.setting("sync_url", "").isEmpty()) db.setSetting("sync_url", url);
+            db.put("default_url", url);
+        } catch (Exception ignored) {
+            // 기본값 파일이 없거나 잘못됐으면 그냥 빈 설정으로 시작한다
+        }
     }
 
     @Override

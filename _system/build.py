@@ -13,6 +13,7 @@
 서명 열쇠(keystore\\gagyebu.jks)는 처음 한 번 만들어 계속 쓴다.
 ★ 이 열쇠를 지우면 새로 만든 APK를 기존 앱 위에 덮어 설치할 수 없다(지우고 다시 설치 = 폰의 가계부 자료 삭제).
 """
+import json
 import os
 import re
 import secrets
@@ -39,6 +40,7 @@ SDK = TOOLS / "sdk"
 BT = SDK / "build-tools" / "34.0.0"
 ANDROID_JAR = SDK / "platforms" / "android-34" / "android.jar"
 BUILD = HERE / "build"
+DEFAULTS = HERE / "defaults.json"
 KEY_DIR = HERE / "keystore"
 KEYSTORE = KEY_DIR / "gagyebu.jks"
 KEY_PASS = KEY_DIR / "password.txt"
@@ -88,6 +90,12 @@ def main():
     print("4/6 묶기")
     with zipfile.ZipFile(BUILD / "base.apk", "a", zipfile.ZIP_DEFLATED) as z:
         z.write(BUILD / "dex" / "classes.dex", "classes.dex")
+        # 기본값(구글 시트 웹 앱 주소): _system\defaults.json 이 있으면 설치 파일에 넣어 첫 실행 때 자동 등록되게 한다.
+        # 이 파일은 소스 저장소(GitHub)에는 올리지 않는다(.gitignore). 암호는 넣지 않는다.
+        if DEFAULTS.exists():
+            json.loads(DEFAULTS.read_text(encoding="utf-8"))          # 형식이 틀리면 여기서 멈춘다
+            z.write(DEFAULTS, "assets/defaults.json")
+            print("    기본값 포함: defaults.json")
     run([BT / "zipalign.exe", "-f", "-p", "4", BUILD / "base.apk", BUILD / "aligned.apk"])
 
     print("5/6 서명")
