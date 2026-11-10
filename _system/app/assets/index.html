@@ -135,7 +135,8 @@ if (!window.Android) window.Android = (() => {
   let budget = 1500000, who = "남편";
   return {
     meta: () => J({ categories: cats, methods: ["카드", "현금", "계좌이체", "간편결제"], budget, who, count: rows.length, noti: false, version: "미리 보기", sync_url: "", sync_key: "", sync_last: "", pending: 0 }),
-    sync: () => J({ ok: true }),
+    sync: () => J({ ok: true }), installUpdate: () => J({ ok: true }),
+    checkUpdate: () => { setTimeout(() => onNativeUpdate({ version: "9.9", notes: "미리 보기용 예시", force: true }), 300); return J({ ok: true }); },
     month: m => J(rows.filter(r => r.date.startsWith(m)).sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time))),
     search: q => J(rows.filter(r => (r.memo + r.category).includes(q))),
     year: y => J({ year: y, months: Array.from({ length: 12 }, (_, i) => { const k = y + "-" + String(i + 1).padStart(2, "0"); const s = k2 => rows.filter(r => r.date.startsWith(k) && r.kind === k2).reduce((a, r) => a + r.amount, 0); return { ym: k, in: s("in"), out: s("out") }; }), categories: [] }),
@@ -173,7 +174,7 @@ function safe(fn) {
 }
 const todayStr = () => { const d = new Date(); return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); };
 
-const S = { tab: "list", ym: todayStr().slice(0, 7), year: todayStr().slice(0, 4), meta: null, entries: [], q: "", form: null };
+const S = { update: null, tab: "list", ym: todayStr().slice(0, 7), year: todayStr().slice(0, 4), meta: null, entries: [], q: "", form: null };
 
 // ───────── 그리기 ─────────
 function load() {
@@ -193,7 +194,9 @@ function render() {
   $("#today").textContent = S.tab === "year" ? "올해" : "이번 달";
   $("#fab").style.display = monthly ? "" : "none";
   document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.t === S.tab));
-  $("#main").innerHTML = { list: viewList, stat: viewStat, year: viewYear, set: viewSet }[S.tab]();
+  const upd = S.update ? `<div class="card" style="border-color:var(--accent)"><div class="status"><div style="flex:1"><b>새 버전 ${esc(S.update.version)}이 나왔습니다</b>
+    <div class="small muted">${esc(S.update.notes || "")}</div></div><button class="btn pri sm" data-act="update">업데이트</button></div></div>` : "";
+  $("#main").innerHTML = upd + { list: viewList, stat: viewStat, year: viewYear, set: viewSet }[S.tab]();
 }
 function statsHtml(s) {
   return `<div class="stats">
@@ -300,6 +303,8 @@ function viewSet() {
       <textarea class="fld" id="tp" placeholder="예) ○○카드 승인 12,300원 일시불 11/10 12:34 스타벅스"></textarea>
       <div class="btns" style="margin-top:8px"><button class="btn" data-act="test">읽어 보기</button></div><div id="tp-out"></div></div>
     <div class="card"><h3>최근 읽은 알림</h3><div id="log">${logHtml()}</div></div>
+    <div class="card"><h3>앱 업데이트</h3><div class="status"><div style="flex:1"><b>지금 버전 ${esc(m.version || "")}</b>
+      <div class="small muted">앱을 열 때 새 버전을 자동으로 확인하고, 있으면 맨 위에 [업데이트] 버튼이 뜹니다.</div></div><button class="btn sm" data-act="upd-check">업데이트 확인</button></div></div>
     <div class="small muted" style="text-align:center">가계부 ${esc(m.version || "")} · 내역 ${won(m.count)}건 · ${m.sync_url ? "자료는 이 폰과 내 구글 시트에 저장됩니다" : "자료는 이 폰 안에만 저장됩니다"}</div>`;
 }
 function logHtml() {
@@ -395,7 +400,9 @@ $("#main").addEventListener("click", safe(ev => {
   }
   if (b.dataset.catdel) { call("category", b.dataset.catdel, b.dataset.name, "delete"); return load(); }
   const act = b.dataset.act;
-  if (act === "noti") call("openNotiSettings");
+  if (act === "update") call("installUpdate");
+  else if (act === "upd-check") { toast("새 버전을 확인하는 중…"); call("checkUpdate"); }
+  else if (act === "noti") call("openNotiSettings");
   else if (act === "appinfo") call("openAppInfo");
   else if (act === "who") { call("setSetting", "who", $("#who").value.trim()); toast("이름을 저장했습니다"); load(); }
   else if (act === "budget") { call("setSetting", "budget", $("#budget").value); toast("예산을 저장했습니다"); load(); }
@@ -465,7 +472,15 @@ window.onNativeSync = safe(() => {
   if (S.form || (a && /^(INPUT|TEXTAREA)$/.test(a.tagName))) return;
   load();
 });
-window.onNativeResult = r => { toast(r.error || r.message || ""); if (r.errors && r.errors.length) console.log(r.errors.join("\n")); safe(load)(); };
+window.onNativeResult = r => { toast(r.error || r.message || ""); if (r.errors && r.errors.length) console.log(r.errors.join("\n")); if (!r.quiet) safe(load)(); };
+// 업데이트 확인 결과: 새 판이 있으면 맨 위에 [업데이트] 카드를 띄운다. 직접 누른 확인(force)일 때만 '최신입니다'·실패를 알린다
+window.onNativeUpdate = safe(r => {
+  const had = !!S.update;
+  S.update = r.version ? r : (r.error ? S.update : null);
+  if (r.force) toast(r.error || (r.version ? "새 버전 " + r.version + "이 있습니다" : "최신 버전입니다"));
+  const a = document.activeElement;
+  if (had !== !!S.update && !S.form && !(a && /^(INPUT|TEXTAREA)$/.test(a.tagName))) render();
+});
 
 safe(load)();
 </script>

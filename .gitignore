@@ -4,11 +4,10 @@ _system/build/
 # ★ 서명 열쇠와 비밀번호는 절대 올리지 않는다
 _system/keystore/
 # 옛 판 설치 파일
-가계부_v1.0.apk
+가계부_v*.apk
 __pycache__/
 # 개발 메모·규칙 문서는 PC에만 둔다
 CLAUDE.md
 규칙/
 # 내 구글 시트 주소 (설치 파일에만 넣고 소스에는 올리지 않는다)
 _system/defaults.json
-가계부_v1.1.apk

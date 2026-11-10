@@ -24,7 +24,7 @@ import java.util.Locale;
 
 /** 가계부 화면. 화면 자체는 assets/index.html(WebView)이고, 자료는 Bridge를 거쳐 폰 안 SQLite에 저장한다. */
 public class MainActivity extends Activity {
-    static final String VERSION = "1.2";
+    static final String VERSION = "1.3";
     private static final int REQ_SAVE = 1, REQ_OPEN = 2;
     private WebView web;
     private String pendingCsv;
@@ -74,6 +74,7 @@ public class MainActivity extends Activity {
         // 다른 앱에서 결제하고 돌아오면 새로 자동 기록된 내역이 바로 보이게 한다
         web.evaluateJavascript("window.onNativeResume&&onNativeResume()", null);
         syncNow();
+        Updater.check(this, false);
     }
 
     /** 구글 시트와 맞추고, 끝나면 화면을 새로 그리게 한다 (주소를 안 넣었으면 아무 일도 없다) */
@@ -89,7 +90,30 @@ public class MainActivity extends Activity {
         });
     }
 
-    private void toJs(String fn, JSONObject o) {
+    /** 설치기가 돌려주는 업데이트 결과 (Updater.install이 건 PendingIntent) */
+    @Override
+    protected void onNewIntent(Intent i) {
+        super.onNewIntent(i);
+        if (i == null || !Updater.ACTION.equals(i.getAction())) return;
+        int status = i.getIntExtra(android.content.pm.PackageInstaller.EXTRA_STATUS, -999);
+        if (status == android.content.pm.PackageInstaller.STATUS_PENDING_USER_ACTION) {
+            Intent confirm = i.getParcelableExtra(Intent.EXTRA_INTENT);     // '업데이트하시겠습니까?' 확인 창
+            if (confirm != null) startActivity(confirm);
+            Updater.busy = false;
+            return;
+        }
+        Updater.busy = false;
+        if (status == android.content.pm.PackageInstaller.STATUS_SUCCESS) return;       // 보통 여기 오기 전에 앱이 새 판으로 바뀐다
+        try {
+            String why = i.getStringExtra(android.content.pm.PackageInstaller.EXTRA_STATUS_MESSAGE);
+            toJs("onNativeResult", new JSONObject().put("quiet", true).put("error",
+                    status == android.content.pm.PackageInstaller.STATUS_FAILURE_ABORTED ? "업데이트를 취소했습니다"
+                            : "업데이트 실패" + (why == null ? "" : ": " + why)));
+        } catch (Exception ignored) {
+        }
+    }
+
+    void toJs(String fn, JSONObject o) {
         runOnUiThread(() -> web.evaluateJavascript("window." + fn + "&&" + fn + "(" + o + ")", null));
     }
 

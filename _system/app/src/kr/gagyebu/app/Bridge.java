@@ -98,6 +98,24 @@ public class Bridge {
         });
     }
 
+    /** 새 버전이 있는지 지금 확인 (결과는 화면의 onNativeUpdate) */
+    @JavascriptInterface
+    public String checkUpdate() {
+        return wrap(() -> {
+            Updater.check(act, true);
+            return null;
+        });
+    }
+
+    /** 새 버전을 받아 설치 */
+    @JavascriptInterface
+    public String installUpdate() {
+        return wrap(() -> {
+            act.runOnUiThread(() -> Updater.install(act));
+            return null;
+        });
+    }
+
     @JavascriptInterface
     public String log() {
         return wrap(db::log);

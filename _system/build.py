@@ -13,6 +13,7 @@
 서명 열쇠(keystore\\gagyebu.jks)는 처음 한 번 만들어 계속 쓴다.
 ★ 이 열쇠를 지우면 새로 만든 APK를 기존 앱 위에 덮어 설치할 수 없다(지우고 다시 설치 = 폰의 가계부 자료 삭제).
 """
+import hashlib
 import json
 import os
 import re
@@ -114,6 +115,15 @@ def main():
     print(run([BT / "aapt2.exe", "dump", "badging", signed]).splitlines()[0])
     out = REAL.parent / f"가계부_v{version}.apk"
     shutil.copyfile(signed, out)
+    # 자동 업데이트용(v1.3~): 앱이 배포 저장소에서 보는 고정 이름 두 개. 이 둘을 GitHub에 올려야 폰에 [업데이트]가 뜬다.
+    #   gagyebu.apk  = 최신 설치 파일 (주소가 바뀌지 않게 영문 고정 이름)
+    #   version.json = 버전·versionCode·SHA-256·바뀐 점(_system\release_notes.txt 첫 줄)
+    shutil.copyfile(signed, REAL.parent / "gagyebu.apk")
+    notes_file = REAL / "release_notes.txt"
+    notes = notes_file.read_text(encoding="utf-8").strip().splitlines()[0] if notes_file.exists() else ""
+    (REAL.parent / "version.json").write_text(json.dumps(
+        {"version": version, "code": int(code), "sha256": hashlib.sha256(signed.read_bytes()).hexdigest(), "notes": notes},
+        ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"완성: {out} ({out.stat().st_size / 1024:.0f} KB)")
 
 
