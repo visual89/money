@@ -24,7 +24,7 @@ import java.util.Locale;
 
 /** 가계부 화면. 화면 자체는 assets/index.html(WebView)이고, 자료는 Bridge를 거쳐 폰 안 SQLite에 저장한다. */
 public class MainActivity extends Activity {
-    static final String VERSION = "1.4";
+    static final String VERSION = "1.5";
     private static final int REQ_SAVE = 1, REQ_OPEN = 2;
     private WebView web;
     private String pendingCsv;
@@ -60,8 +60,11 @@ public class MainActivity extends Activity {
             }
             String url = new JSONObject(new String(buf.toByteArray(), StandardCharsets.UTF_8)).optString("sync_url");
             // 같은 기본 주소는 한 번만 넣는다(default_url에 적어 둠). 그 뒤 사용자가 지우거나 바꾼 것은 그대로 둔다
-            if (url.isEmpty() || url.equals(db.setting("default_url", ""))) return;
-            if (db.setting("sync_url", "").isEmpty()) db.setSetting("sync_url", url);
+            // 주소 칸이 비었거나, 지난번 기본 주소가 그대로 들어 있을 때(사용자가 손대지 않음)는 새 기본 주소로 바꾼다 (v1.5)
+            String prev = db.setting("default_url", "");
+            if (url.isEmpty() || url.equals(prev)) return;
+            String cur = db.setting("sync_url", "");
+            if (cur.isEmpty() || cur.equals(prev)) db.setSetting("sync_url", url);
             db.put("default_url", url);
         } catch (Exception ignored) {
             // 기본값 파일이 없거나 잘못됐으면 그냥 빈 설정으로 시작한다
