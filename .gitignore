@@ -1,0 +1,11 @@
+# 빌드 도구(수백 MB)·중간 산출물은 올리지 않는다
+_system/tools/
+_system/build/
+# ★ 서명 열쇠와 비밀번호는 절대 올리지 않는다
+_system/keystore/
+# 옛 판 설치 파일
+가계부_v1.0.apk
+__pycache__/
+# 개발 메모·규칙 문서는 PC에만 둔다
+CLAUDE.md
+규칙/

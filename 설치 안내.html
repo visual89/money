@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>가계부 설치 안내</title>
+<style>
+:root { --bg:#FAF9F5; --card:#FFFFFF; --text:#1F1E1D; --muted:#7A776F; --line:#DEDBD0; --accent:#C96442; --head:#F1EFE8; --code:#A3412A; --warn:#B8742A; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#262624; --card:#30302E; --text:#F5F4EE; --muted:#A6A39A; --line:#3E3D39; --accent:#D97757; --head:#3A3936; --code:#E89A7E; --warn:#D9A94E; }
+}
+body { margin:0; background:var(--bg); color:var(--text); font-family:'맑은 고딕','Malgun Gothic',sans-serif; line-height:1.75; }
+.wrap { max-width:760px; margin:0 auto; padding:32px 16px 64px; }
+h1 { font-size:1.5rem; margin:0 0 6px; padding-left:10px; border-left:3px solid var(--accent); }
+h2 { font-size:1.1rem; color:var(--accent); margin:28px 0 10px; }
+.sub { color:var(--muted); margin:0 0 18px; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px 20px; margin-bottom:12px; }
+ol { margin:0; padding-left:1.3em; } li { margin:6px 0; }
+code { background:var(--head); color:var(--code); border-radius:5px; padding:1px 6px; font-family:Consolas,'맑은 고딕',monospace; font-size:.9em; word-break:break-all; }
+.note { border-left:3px solid var(--warn); padding:6px 12px; color:var(--muted); font-size:.92rem; margin-top:10px; }
+b.k { color:var(--accent); }
+table { width:100%; border-collapse:collapse; font-size:.92rem; }
+th, td { text-align:left; padding:8px 10px; border-top:1px solid var(--line); vertical-align:top; }
+th { background:var(--head); border-top:none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>가계부 설치 안내</h1>
+<p class="sub">결제 알림을 읽어 자동으로 적는 부부 공용 가계부 · v1.1 · 순서대로 A → B → C</p>
+
+<h2>A. 구글 스프레드시트 준비 (한 사람이 한 번만, 약 5분)</h2>
+<div class="card">
+<ol>
+  <li>구글 계정으로 <b class="k">새 스프레드시트</b>를 만듭니다 (이름 예: 우리집 가계부). 회사 PC에서 구글 드라이브가 막혀 있으면 폰이나 집 PC에서 합니다.</li>
+  <li>메뉴 <b>확장 프로그램 → Apps Script</b>를 엽니다. 처음 보이는 내용을 모두 지우고, 같은 폴더의 <code>구글시트_스크립트.gs</code> 내용을 전부 붙여 넣습니다.</li>
+  <li>맨 위 <code>const KEY = '여기에_암호를_적으세요';</code>의 따옴표 안을 <b class="k">둘만 아는 암호</b>로 바꾸고 저장(💾)합니다.</li>
+  <li>오른쪽 위 <b>배포 → 새 배포</b> → 유형 선택(⚙)에서 <b>웹 앱</b>을 고릅니다.
+    <br>다음 사용자 인증 정보로 실행: <b class="k">나</b> · 액세스 권한이 있는 사용자: <b class="k">모든 사용자</b> → <b>배포</b>.</li>
+  <li>처음에는 권한 확인 창이 뜹니다. 내 계정 선택 → '고급' → '(프로젝트 이름)(으)로 이동' → <b>허용</b>.</li>
+  <li>완료 화면의 <b class="k">웹 앱 URL</b>(<code>https://script.google.com/macros/s/…/exec</code>)을 복사해 둡니다. 두 폰에 똑같이 넣을 주소입니다.</li>
+</ol>
+<div class="note">'모든 사용자'는 주소를 아는 사람이 접속할 수 있다는 뜻이고, 암호가 맞아야만 읽고 쓸 수 있습니다. 주소와 암호는 다른 사람에게 알리지 않습니다.
+나중에 스크립트를 고치면 <b>배포 → 배포 관리 → ✏ → 버전: 새 버전 → 배포</b>를 해야 반영됩니다 (주소는 그대로).</div>
+</div>
+
+<h2>B. 폰에 앱 설치 (두 폰 각각)</h2>
+<div class="card">
+<ol>
+  <li>폰에서 <code>가계부_v1.1.apk</code>를 내려받아 엽니다. '출처를 알 수 없는 앱 설치'를 묻는 창이 뜨면 허용합니다.</li>
+  <li>'Play 프로텍트' 경고가 뜨면 <b>세부정보 더보기 → 무시하고 설치</b>를 누릅니다 (플레이스토어에 올리지 않은 개인 앱이라 뜨는 안내입니다).</li>
+  <li>앱을 열고 <b>설정</b> 탭 → <b>[알림 접근 설정 열기]</b> → 목록에서 <b class="k">가계부</b>를 켭니다.</li>
+  <li>스위치가 회색으로 막혀 있으면: 설정 탭 <b>[앱 정보]</b> → 오른쪽 위 <b>⋮</b> → <b class="k">제한된 설정 허용</b> → 다시 3번.</li>
+  <li>폰 설정 → 배터리 → 가계부를 <b>'제한 없음'</b>으로 두면 알림을 놓치지 않습니다.</li>
+</ol>
+</div>
+
+<h2>C. 앱 설정 (두 폰 각각)</h2>
+<div class="card">
+<ol>
+  <li><b>내 이름</b>: 남편 폰은 '남편', 아내 폰은 '아내'처럼 서로 다르게 저장합니다. 누가 쓴 돈인지 구분됩니다.</li>
+  <li><b>구글 스프레드시트 공유</b>: A에서 복사한 <b>웹 앱 주소</b>와 <b>암호</b>를 넣고 [저장] → [지금 맞추기]. '완료 (올림 N건 · 받음 N건)'이 보이면 연결된 것입니다.</li>
+  <li>카드로 한 번 결제해 보고, 내역 탭에 <b>자동</b> 표시로 적히는지, 구글 시트 '가계부' 탭에 한 줄이 생기는지 확인합니다.</li>
+</ol>
+</div>
+
+<h2>알아 둘 점</h2>
+<div class="card">
+<table>
+  <tr><th style="width:9em">자동으로 읽는 알림</th><td>롯데카드(디지로카)·우리카드·현대카드 앱 알림, 농협카드 카카오톡 알림, 네이버·쿠팡 앱 알림, 카드 승인 문자, 은행 입출금 알림</td></tr>
+  <tr><th>적지 않는 것</th><td>광고, 결제예정·명세서 안내, 금액이 없는 알림(쿠팡 '배송 출발' 등), 가족끼리 주고받은 메시지</td></tr>
+  <tr><th>같은 결제 알림 2개</th><td>네이버에서 카드로 결제하면 네이버 알림과 카드 알림이 둘 다 옵니다. 같은 금액이 10분 안에 오면 한 건으로 합칩니다.</td></tr>
+  <tr><th>잘못 읽혔을 때</th><td>내역을 눌러 가게 이름·분류를 고치면 됩니다. 고친 분류는 기억해서 다음부터 그 가게에 자동으로 붙습니다.
+    계속 틀리는 카드사는 설정 탭 '최근 읽은 알림'의 문구를 알려 주면 규칙을 고칩니다.</td></tr>
+  <tr><th>공유가 맞춰지는 때</th><td>결제가 자동으로 적힌 직후, 내역을 고치거나 지운 직후, 앱을 열 때. 인터넷이 안 되면 폰에 두었다가 다음에 올립니다.</td></tr>
+  <tr><th>시트에서 직접 고치기</th><td>시트에서 손으로 고친 내용은 폰에 반영되지 않습니다. 고칠 때는 앱에서 고칩니다. 시트는 보기·집계용으로 씁니다.</td></tr>
+  <tr><th>새 버전 설치</th><td>새 APK를 그대로 덮어 설치하면 내역이 유지됩니다. 앱을 '삭제'하면 폰 안 내역은 지워지지만, 시트에 올라간 내역은 [지금 맞추기]로 다시 받습니다.</td></tr>
+</table>
+</div>
+</div>
+</body>
+</html>

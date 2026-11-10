@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 앱 아이콘: 주황 바탕 위 흰 장부(줄 3개) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M38,30h32a4,4 0,0 1,4 4v40a4,4 0,0 1,-4 4h-32a4,4 0,0 1,-4 -4v-40a4,4 0,0 1,4 -4z" />
+    <path android:fillColor="#C96442" android:pathData="M41,41h26v4h-26z" />
+    <path android:fillColor="#C96442" android:pathData="M41,51h26v4h-26z" />
+    <path android:fillColor="#C96442" android:pathData="M41,61h16v4h-16z" />
+</vector>
