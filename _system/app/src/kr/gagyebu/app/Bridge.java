@@ -90,6 +90,12 @@ public class Bridge {
         return wrap(() -> new JSONObject().put("ok", true).put("id", db.save(new JSONObject(json))));
     }
 
+    /** 입력 창에서 사용처를 적으면, 전에 내역에서 정해 둔(같거나 비슷한 사용처의) 분류를 알려 준다. 없으면 빈 값 */
+    @JavascriptInterface
+    public String suggest(String memo) {
+        return wrap(() -> new JSONObject().put("category", db.learnedCategory(memo)));
+    }
+
     @JavascriptInterface
     public String remove(String id) {
         return wrap(() -> {
@@ -157,7 +163,7 @@ public class Bridge {
             o.put("amount", r.amount);
             o.put("merchant", r.merchant);
             o.put("method", r.method);
-            o.put("category", r.ok ? Parser.guessCategory(r.merchant) : "");
+            o.put("category", r.ok ? db.categoryFor(r.merchant) : "");
             o.put("reason", r.reason);
             return o;
         });

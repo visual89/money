@@ -308,11 +308,33 @@ public class Db extends SQLiteOpenHelper {
                 new Object[]{kind, name, kind});
     }
 
-    private String categoryFor(String merchant) {
-        try (Cursor c = getReadableDatabase().rawQuery("SELECT category FROM rules WHERE merchant=?", new String[]{merchant})) {
-            if (c.moveToFirst()) return c.getString(0);
+    /**
+     * 사용자가 내역에서 정해 둔 분류 찾기: 같은 사용처가 있으면 그 분류, 없으면 가장 비슷한 사용처의 분류 (v1.6).
+     * 정해 둔 것이 없으면 빈 문자열.
+     */
+    public String learnedCategory(String merchant) {
+        merchant = merchant == null ? "" : merchant.trim();
+        if (merchant.isEmpty()) return "";
+        String best = "";
+        int bestScore = 0, bestLen = 0;
+        try (Cursor c = getReadableDatabase().rawQuery("SELECT merchant, category FROM rules", null)) {
+            while (c.moveToNext()) {
+                String m = c.getString(0);
+                if (m.equals(merchant)) return c.getString(1);
+                int s = Parser.similarity(m, merchant);
+                if (s > bestScore || (s == bestScore && s > 0 && m.length() > bestLen)) {
+                    bestScore = s;
+                    bestLen = m.length();
+                    best = c.getString(1);
+                }
+            }
         }
-        return Parser.guessCategory(merchant);
+        return best;
+    }
+
+    String categoryFor(String merchant) {
+        String learned = learnedCategory(merchant);
+        return learned.isEmpty() ? Parser.guessCategory(merchant) : learned;
     }
 
     // ───────────── 알림 자동 기록 ─────────────

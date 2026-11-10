@@ -150,6 +150,37 @@ public final class Parser {
         return "미분류";
     }
 
+    // ───────────── 비슷한 사용처 (v1.6) ─────────────
+    private static final Pattern BRANCH = Pattern.compile("\\s+\\S{1,8}점$|\\s*(?:본점|직영점|\\d+호점)$");
+
+    /** 사용처 이름을 견주기 좋게 다듬는다: 괄호·(주)·주식회사·띄어 쓴 지점 이름('강남점')·공백·기호를 빼고 소문자로 */
+    public static String normMerchant(String merchant) {
+        String s = nz(merchant).replaceAll("\\([^)]*\\)|\\[[^\\]]*\\]", " ").replaceAll("주식회사|유한회사|㈜", " ").trim();
+        String cut = BRANCH.matcher(s).replaceAll("");
+        if (cut.replaceAll("[^가-힣A-Za-z0-9]", "").length() >= 2) s = cut;
+        return s.replaceAll("[^가-힣A-Za-z0-9]", "").toLowerCase(java.util.Locale.ROOT);
+    }
+
+    /**
+     * 사용자가 분류를 정해 둔 사용처(known)와 새 사용처(merchant)가 얼마나 비슷한지. 0 = 다른 곳, 클수록 비슷하다.
+     * 100 같은 곳(지점·띄어쓰기만 다름) / 80~ 한쪽이 다른 쪽으로 시작('스타벅스' ↔ '스타벅스강남점')
+     * / 60~ 한쪽이 다른 쪽에 들어 있음('올리브영' ↔ 'CJ올리브영') / 40~ 앞 네 글자 이상이 같음('스타벅스강남' ↔ '스타벅스역삼').
+     * 결제 대행사 이름(네이버페이·쿠팡 등)은 '쿠팡' ↔ '쿠팡이츠'처럼 다른 곳을 묶지 않도록 같은 이름일 때만 인정한다.
+     */
+    public static int similarity(String known, String merchant) {
+        String a = normMerchant(known), b = normMerchant(merchant);
+        if (a.isEmpty() || b.isEmpty()) return 0;
+        if (a.equals(b)) return 100;
+        if (isGateway(known) || isGateway(merchant)) return 0;
+        String s = a.length() <= b.length() ? a : b, l = a.length() <= b.length() ? b : a;
+        if (s.length() >= 3 && l.startsWith(s)) return 80 + Math.min(s.length(), 19);
+        if (s.length() >= 3 && l.contains(s)) return 60 + Math.min(s.length(), 19);
+        int p = 0;
+        while (p < s.length() && s.charAt(p) == l.charAt(p)) p++;
+        if (p >= 4 && p * 2 >= s.length()) return 40 + Math.min(p, 19);
+        return 0;
+    }
+
     private static String nz(String s) {
         return s == null ? "" : s;
     }

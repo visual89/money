@@ -142,6 +142,7 @@ if (!window.Android) window.Android = (() => {
     year: y => J({ year: y, months: Array.from({ length: 12 }, (_, i) => { const k = y + "-" + String(i + 1).padStart(2, "0"); const s = k2 => rows.filter(r => r.date.startsWith(k) && r.kind === k2).reduce((a, r) => a + r.amount, 0); return { ym: k, in: s("in"), out: s("out") }; }), categories: [] }),
     save: j => { const b = JSON.parse(j); b.amount = +String(b.amount).replace(/,/g, ""); if (!b.amount) return J({ error: "금액을 알 수 없습니다" }); if (b.id) Object.assign(rows.find(r => r.id === b.id), b); else rows.push({ ...b, id: seq++, time: "", who, auto: 0, raw: "" }); return J({ ok: true }); },
     remove: id => { rows = rows.filter(r => r.id !== +id); return J({ ok: true }); },
+    suggest: memo => { const k = memo.replace(/\s/g, ""), r = k.length >= 3 && rows.find(x => x.kind === "out" && x.category !== "미분류" && x.memo.replace(/\s/g, "").startsWith(k.slice(0, 4))); return J({ category: r ? r.category : "" }); },
     category: (k, n, a) => { if (a === "add") cats[k].push(n); else cats[k] = cats[k].filter(x => x !== n); return J({ ok: true }); },
     setSetting: (k, v) => { if (k === "budget") budget = +String(v).replace(/,/g, "") || 0; else who = v; return J({ ok: true }); },
     log: () => J([{ when: "11.08 21:15", label: "네이버", title: "네이버페이", text: "15,000원 결제가 완료되었습니다.", result: "기록: 네이버페이 15000원" }]),
@@ -293,7 +294,7 @@ function viewSet() {
       <div style="display:flex;gap:8px"><input class="fld" id="who" maxlength="10" value="${esc(m.who)}" placeholder="이름"><button class="btn sm" data-act="who">저장</button></div></div>
     <div class="card"><h3>한 달 예산</h3>
       <div style="display:flex;gap:8px"><input class="fld" id="budget" inputmode="numeric" value="${m.budget ? won(m.budget) : ""}" placeholder="0 = 예산 없음"><button class="btn sm" data-act="budget">저장</button></div></div>
-    <div class="card"><h3>분류 관리</h3><label>지출</label><div class="chips">${chips("out")}</div>
+    <div class="card"><h3>분류 관리</h3><div class="small muted" style="margin-bottom:8px">내역을 눌러 분류를 바꾸면 그 가게를 기억해, 다음부터 같은 곳·비슷한 이름(다른 지점 등)은 자동으로 그 분류로 적힙니다.</div><label>지출</label><div class="chips">${chips("out")}</div>
       <div style="display:flex;gap:8px;margin-top:8px"><input class="fld" id="cat-out" maxlength="30" placeholder="새 지출 분류"><button class="btn sm" data-catadd="out">추가</button></div>
       <label>수입</label><div class="chips">${chips("in")}</div>
       <div style="display:flex;gap:8px;margin-top:8px"><input class="fld" id="cat-in" maxlength="30" placeholder="새 수입 분류"><button class="btn sm" data-catadd="in">추가</button></div></div>
@@ -428,12 +429,25 @@ $("#main").addEventListener("click", safe(ev => {
       : "기록하지 않음 — " + esc(r.reason)}</div>`;
   }
 }));
+let sugTimer;
 $("#sheet").addEventListener("input", ev => {
   if (ev.target.id === "f-amt") {
     const v = ev.target.value.replace(/[^\d]/g, "").slice(0, 11);
     ev.target.value = v ? won(v) : "";
+  } else if (ev.target.id === "f-memo") {
+    // 새 지출을 적을 때: 전에 내역에서 분류를 정해 둔 곳(같거나 비슷한 이름)이면 그 분류를 미리 골라 준다. 직접 고른 분류는 건드리지 않는다
+    clearTimeout(sugTimer);
+    sugTimer = setTimeout(safe(() => {
+      const f = S.form, sel = $("#f-cat");
+      if (!f || f.id || f.kind !== "out" || f.catTouched || !sel) return;
+      const c = call("suggest", $("#f-memo").value.trim()).category;
+      if (!c) return;
+      if (![...sel.options].some(o => o.value === c)) sel.add(new Option(c, c), 0);
+      sel.value = c;
+    }), 250);
   }
 });
+$("#sheet").addEventListener("change", ev => { if (ev.target.id === "f-cat" && S.form) S.form.catTouched = true; });
 let delArmed = false;
 $("#sheet").addEventListener("click", safe(ev => {
   const b = ev.target.closest("button");
