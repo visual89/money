@@ -147,28 +147,6 @@ public class Bridge {
         });
     }
 
-    @JavascriptInterface
-    public String log() {
-        return wrap(db::log);
-    }
-
-    /** 설정 화면의 '알림 문구 시험': 붙여 넣은 문구가 어떻게 읽히는지 보여 준다 (저장하지 않음) */
-    @JavascriptInterface
-    public String testParse(String text) {
-        return wrap(() -> {
-            Parser.Result r = Parser.parse("", "", text == null ? "" : text);
-            JSONObject o = new JSONObject();
-            o.put("ok", r.ok);
-            o.put("kind", r.kind);
-            o.put("amount", r.amount);
-            o.put("merchant", r.merchant);
-            o.put("method", r.method);
-            o.put("category", r.ok ? db.categoryFor(r.merchant) : "");
-            o.put("reason", r.reason);
-            return o;
-        });
-    }
-
     private boolean notiEnabled() {
         String on = Settings.Secure.getString(act.getContentResolver(), "enabled_notification_listeners");
         return on != null && on.contains(new ComponentName(act, NotiListener.class).flattenToString());

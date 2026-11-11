@@ -90,9 +90,6 @@ textarea.fld { height:96px; padding:10px 12px; resize:none; }
 .status { display:flex; align-items:center; gap:10px; }
 .dot { width:10px; height:10px; border-radius:50%; background:var(--out); flex:none; }
 .dot.on { background:var(--in); }
-.logi { border-top:1px solid var(--line); padding:9px 0; font-size:.8rem; }
-.logi:first-child { border-top:none; }
-.logi .t { white-space:pre-wrap; word-break:break-all; color:var(--muted); }
 #toast { position:fixed; left:50%; bottom:160px; transform:translateX(-50%); background:var(--text); color:var(--bg); padding:10px 18px;
   border-radius:20px; font-size:.88rem; z-index:20; opacity:0; transition:opacity .2s; pointer-events:none; max-width:86%; text-align:center; }
 #toast.on { opacity:.94; }
@@ -145,8 +142,6 @@ if (!window.Android) window.Android = (() => {
     suggest: memo => { const k = memo.replace(/\s/g, ""), r = k.length >= 3 && rows.find(x => x.kind === "out" && x.category !== "미분류" && x.memo.replace(/\s/g, "").startsWith(k.slice(0, 4))); return J({ category: r ? r.category : "" }); },
     category: (k, n, a) => { if (a === "add") cats[k].push(n); else cats[k] = cats[k].filter(x => x !== n); return J({ ok: true }); },
     setSetting: (k, v) => { if (k === "budget") budget = +String(v).replace(/,/g, "") || 0; else who = v; return J({ ok: true }); },
-    log: () => J([{ when: "11.08 21:15", label: "네이버", title: "네이버페이", text: "15,000원 결제가 완료되었습니다.", result: "기록: 네이버페이 15000원" }]),
-    testParse: () => J({ ok: false, reason: "미리 보기에서는 시험할 수 없습니다" }),
     openNotiSettings: () => J({ ok: true }), openAppInfo: () => J({ ok: true }), exportCsv: () => J({ ok: true }), importCsv: () => J({ ok: true }),
   };
 })();
@@ -302,19 +297,9 @@ function viewSet() {
       <div class="small muted">내역을 CSV 파일로 저장하거나 다시 넣습니다. 엑셀에서도 열립니다. 가져올 때 이미 있는 내역은 건너뜁니다.</div>
       <div class="btns"><button class="btn" data-act="exp-month">이번 달 내보내기</button><button class="btn" data-act="exp-all">전체 내보내기</button></div>
       <div class="btns" style="margin-top:8px"><button class="btn" data-act="imp">가져오기</button></div></div>
-    <div class="card"><h3>알림 문구 시험</h3><div class="small muted" style="margin-bottom:8px">받은 결제 알림·문자를 붙여 넣으면 어떻게 읽히는지 보여 줍니다 (저장되지 않음).</div>
-      <textarea class="fld" id="tp" placeholder="예) ○○카드 승인 12,300원 일시불 11/10 12:34 스타벅스"></textarea>
-      <div class="btns" style="margin-top:8px"><button class="btn" data-act="test">읽어 보기</button></div><div id="tp-out"></div></div>
-    <div class="card"><h3>최근 읽은 알림</h3><div id="log">${logHtml()}</div></div>
     <div class="card"><h3>앱 업데이트</h3><div class="status"><div style="flex:1"><b>지금 버전 ${esc(m.version || "")}</b>
       <div class="small muted">앱을 열 때 새 버전을 자동으로 확인하고, 있으면 맨 위에 [업데이트] 버튼이 뜹니다.</div></div><button class="btn sm" data-act="upd-check">업데이트 확인</button></div></div>
     <div class="small muted" style="text-align:center">가계부 ${esc(m.version || "")} · 내역 ${won(m.count)}건 · ${m.sync_url ? "자료는 이 폰과 내 구글 시트에 저장됩니다" : "자료는 이 폰 안에만 저장됩니다"}</div>`;
-}
-function logHtml() {
-  const l = call("log");
-  if (!l.length) return '<div class="muted small">아직 읽은 결제 알림이 없습니다.</div>';
-  return l.map(x => `<div class="logi"><b>${esc(x.result)}</b> <span class="muted">· ${esc(x.when)} · ${esc(x.label)}</span>
-    <div class="t">${esc(x.title)}${x.title ? "\n" : ""}${esc(x.text)}</div></div>`).join("");
 }
 
 // ───────── 입력 창 ─────────
@@ -422,12 +407,6 @@ $("#main").addEventListener("click", safe(ev => {
   else if (act === "exp-month") call("exportCsv", S.ym);
   else if (act === "exp-all") call("exportCsv", "all");
   else if (act === "imp") call("importCsv");
-  else if (act === "test") {
-    const r = call("testParse", $("#tp").value);
-    $("#tp-out").innerHTML = `<div class="raw">${r.ok
-      ? `${r.kind === "in" ? "수입" : "지출"} · ${won(r.amount)}원\n어디: ${esc(r.merchant)}\n분류: ${esc(r.category)} · 결제수단: ${esc(r.method)}`
-      : "기록하지 않음 — " + esc(r.reason)}</div>`;
-  }
 }));
 let sugTimer;
 $("#sheet").addEventListener("input", ev => {

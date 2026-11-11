@@ -94,7 +94,7 @@ public final class Parser {
 
         if (NEG.matcher(all).find()) { r.reason = "광고·안내 문구"; return r; }
         // 금융 앱·문자·카카오톡이 아닌 모르는 앱(쇼핑·배달·뉴스 등)은 가격·홍보 알림이 많아 더 엄격하게 본다.
-        // 앱 이름이 없으면(설정 탭 '알림 문구 시험') 예전처럼 느슨하게 읽는다
+        // 앱 이름이 없으면(PC 시험 등) 예전처럼 느슨하게 읽는다
         boolean strict = !label.isEmpty() && !isFinApp(label) && !isMessenger(label);
         if (strict && NEG_AD.matcher(all).find()) { r.reason = "광고·안내 문구"; return r; }
         boolean income = INCOME.matcher(all).find() && !all.contains("승인");

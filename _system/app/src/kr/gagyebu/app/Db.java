@@ -412,22 +412,6 @@ public class Db extends SQLiteOpenHelper {
         return result;
     }
 
-    public JSONArray log() throws JSONException {
-        JSONArray out = new JSONArray();
-        try (Cursor c = getReadableDatabase().rawQuery("SELECT ts, label, title, text, result FROM notilog ORDER BY id DESC LIMIT 50", null)) {
-            while (c.moveToNext()) {
-                JSONObject o = new JSONObject();
-                o.put("when", fmt("MM.dd HH:mm", c.getLong(0)));
-                o.put("label", c.getString(1));
-                o.put("title", c.getString(2));
-                o.put("text", c.getString(3));
-                o.put("result", c.getString(4));
-                out.put(o);
-            }
-        }
-        return out;
-    }
-
     // ───────────── 구글 시트 공유 (Sync가 부른다) ─────────────
     /** 아직 시트에 올리지 않은 내역 (지운 것 포함). 한 번에 300건까지 */
     public synchronized JSONArray dirtyRows() throws JSONException {
