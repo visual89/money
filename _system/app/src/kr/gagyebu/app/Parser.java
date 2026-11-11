@@ -153,6 +153,67 @@ public final class Parser {
         return m.isEmpty() || PG.matcher(m).replaceAll("").replaceAll("[\\s()결제취소]", "").isEmpty();
     }
 
+    /** 사용처가 얼마나 자세한지: 대행사 이름뿐 0 < 대행사 이름이 섞인 가게 이름(네이버스토어 등) 1 < 그 밖의 상호·상품 이름 2 */
+    private static int detail(String part) {
+        return isGateway(part) ? 0 : PG.matcher(part).find() ? 1 : 2;
+    }
+
+    /**
+     * 같은 결제를 알린 여러 알림의 사용처를 하나로 합친다 (v2.0). 가장 자세한 것을 앞에, 나머지를 괄호 안에 둔다.
+     * 예) 카드 알림 '네이버스토어' + 네이버 알림 '동원참치' → '동원참치 (네이버스토어)'. 알림이 셋 이상이어도 차례로 합쳐진다.
+     * 같은 말이거나 한쪽이 다른 쪽에 들어 있으면 긴 것 하나만 남긴다.
+     */
+    public static String mergeMerchant(String a, String b) {
+        final String cancelMark = "(결제 취소)";
+        boolean cancel = nz(a).contains(cancelMark) || nz(b).contains(cancelMark);
+        java.util.List<String> parts = new java.util.ArrayList<>();
+        for (String s : new String[]{a, b}) {
+            for (String p : nz(s).replace(cancelMark, "").split("[()]|\\s·\\s")) {
+                String t = p.trim();
+                if (t.isEmpty()) continue;
+                String key = mergeKey(t);
+                boolean done = false;
+                for (int i = 0; i < parts.size() && !done; i++) {
+                    String k = mergeKey(parts.get(i));
+                    if (k.equals(key)) { if (t.length() > parts.get(i).length()) parts.set(i, t); done = true; }   // 지점 이름만 다른 경우 긴 쪽
+                    else if (k.contains(key)) done = true;
+                    else if (key.contains(k)) { parts.set(i, t); done = true; }
+                }
+                if (!done) parts.add(t);
+            }
+        }
+        if (parts.isEmpty()) return cancel ? cancelMark : "";
+        int main = 0;
+        for (int i = 1; i < parts.size(); i++) {
+            int d = detail(parts.get(i)), dm = detail(parts.get(main));
+            if (d > dm || (d == dm && parts.get(i).length() > parts.get(main).length())) main = i;
+        }
+        // 괄호 안에 '네이버스토어'처럼 가게 이름이 있으면 대행사 이름뿐인 것('네이버페이')은 겹치므로 뺀다
+        boolean shop = false;
+        for (int i = 0; i < parts.size(); i++) if (i != main && detail(parts.get(i)) == 1) shop = true;
+        StringBuilder rest = new StringBuilder();
+        for (int i = 0; i < parts.size(); i++) {
+            if (i == main || (shop && detail(parts.get(i)) == 0)) continue;
+            if (rest.length() > 0) rest.append(" · ");
+            rest.append(parts.get(i));
+        }
+        String out = parts.get(main) + (rest.length() > 0 ? " (" + rest + ")" : "");
+        if (out.length() > 85) out = out.substring(0, 85);
+        return cancel ? out + " " + cancelMark : out;
+    }
+
+    private static String mergeKey(String part) {
+        String k = normMerchant(part).toLowerCase();
+        return k.isEmpty() ? part.toLowerCase() : k;
+    }
+
+    /** 합친 사용처에서 괄호 앞의 가장 자세한 이름만 */
+    public static String mainMerchant(String merged) {
+        String m = nz(merged);
+        int i = m.indexOf(" (");
+        return i > 0 ? m.substring(0, i) : m;
+    }
+
     private static final String[][] CATS = {
             {"카페·간식", "스타벅스|커피|카페|투썸|이디야|메가엠지씨|메가MGC|컴포즈|빽다방|폴바셋|할리스|베이커리|파리바게|뚜레쥬르|던킨|배스킨"},
             {"식비", "배달의민족|배민|요기요|쿠팡이츠|식당|마트|이마트|홈플러스|롯데마트|코스트코|트레이더스|GS25|CU|씨유|세븐일레븐|이마트24|편의점|반찬|정육|치킨|피자|버거|맥도날드|롯데리아|김밥|국밥|한식|분식|마켓컬리|컬리"},

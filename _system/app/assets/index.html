@@ -309,6 +309,11 @@ function openForm(e) {
   $("#shade").classList.add("on");
   if (!e) setTimeout(() => $("#f-amt") && $("#f-amt").focus(), 80);
 }
+// 받은 알림 원본. 같은 결제를 여러 앱이 알려 합쳐진 내역은 알림마다 칸을 따로 보여 준다
+function rawHtml(raw) {
+  const l = (raw || "").split(/\n\n(?=\[)/).filter(x => x.trim());
+  return l.map((x, i) => `<div class="raw">받은 알림${l.length > 1 ? ` ${i + 1} / ${l.length}` : ""}\n${esc(x)}</div>`).join("");
+}
 function drawForm() {
   const f = S.form, cats = [...S.meta.categories[f.kind]];
   if (f.category && !cats.includes(f.category)) cats.unshift(f.category);
@@ -319,7 +324,7 @@ function drawForm() {
     <div class="two"><div><label>날짜</label><input class="fld" id="f-date" type="date" value="${esc(f.date)}"></div>
       <div><label>분류</label><select class="fld" id="f-cat">${cats.map(c => `<option ${c === f.category ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></div></div>
     <label>결제수단</label><div class="seg" id="f-method" style="margin-bottom:0">${S.meta.methods.map(x => `<button data-method="${esc(x)}" class="${x === f.method ? "on" : ""}">${esc(x)}</button>`).join("")}</div>
-    ${f.raw ? `<div class="raw">받은 알림\n${esc(f.raw)}</div>` : ""}
+    ${rawHtml(f.raw)}
     <div class="btns">${f.id ? '<button class="btn del" data-act="del">삭제</button>' : ""}<button class="btn" data-act="close">취소</button><button class="btn pri" data-act="save">저장</button></div>`;
 }
 function readForm() {

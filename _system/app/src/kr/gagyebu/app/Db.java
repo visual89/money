@@ -358,26 +358,38 @@ public class Db extends SQLiteOpenHelper {
             // 같은 결제를 다른 앱이 또 알린 것인지 찾는다: 구분·금액이 같고 앞뒤 1시간 안의 자동 기록 (v1.7, 간격은 v1.8에서 1시간)
             // 단 같은 앱이 이미 알린 내역이면 진짜 두 번 결제한 것으로 보고 따로 적는다(같은 가게에서 같은 금액을 두 번)
             String tag = "[" + label + "] ";
-            try (Cursor c = d.rawQuery("SELECT id, memo, raw FROM entries WHERE deleted=0 AND auto=1 AND kind=? AND amount=?"
+            String dupMethod = "", dupCat = "";
+            try (Cursor c = d.rawQuery("SELECT id, memo, raw, method, category FROM entries WHERE deleted=0 AND auto=1 AND kind=? AND amount=?"
                             + " AND created BETWEEN ? AND ? ORDER BY id DESC",
                     new String[]{r.kind, String.valueOf(r.amount), String.valueOf(ts - DUP_WINDOW), String.valueOf(ts + DUP_WINDOW)})) {
                 while (c.moveToNext()) {
                     if (c.getString(2).contains(tag)) continue;
                     dupId = c.getLong(0);
                     dupMemo = c.getString(1);
+                    dupMethod = c.getString(3) == null ? "" : c.getString(3);
+                    dupCat = c.getString(4) == null ? "" : c.getString(4);
                     break;
                 }
             }
             if (dupId > 0) {
                 // 같은 결제의 두 번째 알림(예: 카드사 문자 + 카드 앱 알림, 네이버 구매 알림 + 카드사 승인 알림).
-                // 새로 적지 않고 먼저 적은 한 건만 둔다. 먼저 것이 결제 대행사 이름뿐이면 더 구체적인 사용처로 바꾼다
-                if (Parser.isGateway(dupMemo) && !Parser.isGateway(r.merchant)) {
-                    d.execSQL("UPDATE entries SET memo=?, category=?, raw=raw||?, updated=?, dirty=1 WHERE id=?",
-                            new Object[]{r.merchant, r.kind.equals("out") ? categoryFor(r.merchant) : "결제취소", "\n\n" + raw, ts, dupId});
+                // 새로 적지 않고 먼저 적은 한 건에 합친다 (v2.0): 사용처는 가장 자세한 것을 앞에, 나머지는 괄호 안에.
+                // 카드 알림이 하나라도 있으면 결제수단은 카드. 분류는 합친 사용처로 다시 정하되 모르면 먼저 것을 둔다
+                String merged = Parser.mergeMerchant(dupMemo, r.merchant);
+                String method = "카드".equals(r.method) ? "카드" : dupMethod;
+                if (!merged.equals(dupMemo) || !method.equals(dupMethod)) {
+                    String cat = dupCat;
+                    if (r.kind.equals("out") && !merged.equals(dupMemo)) {
+                        String c2 = categoryFor(Parser.mainMerchant(merged));
+                        if ("미분류".equals(c2)) c2 = categoryFor(merged);
+                        if (!"미분류".equals(c2) || cat.isEmpty()) cat = c2;
+                    }
+                    d.execSQL("UPDATE entries SET memo=?, category=?, method=?, raw=raw||?, updated=?, dirty=1 WHERE id=?",
+                            new Object[]{merged, cat, method, "\n\n" + raw, ts, dupId});
                 } else {
                     d.execSQL("UPDATE entries SET raw=raw||? WHERE id=?", new Object[]{"\n\n" + raw, dupId});
                 }
-                result = "중복(적지 않음, 먼저 적은 건과 같은 결제): " + r.amount + "원";
+                result = "중복(적지 않음, 먼저 적은 건에 합침): " + merged + " " + r.amount + "원";
             } else {
                 ContentValues v = new ContentValues();
                 v.put("date", fmt("yyyy-MM-dd", ts));
