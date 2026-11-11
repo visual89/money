@@ -6,7 +6,7 @@ import android.os.Bundle;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
 
-/** 폰에 뜨는 알림 중 결제 알림(카드사·은행·네이버·쿠팡·문자 등)을 읽어 가계부에 적는다. */
+/** 폰에 뜨는 모든 앱의 알림 중 결제·입출금 알림을 읽어 가계부에 적는다 (v1.7부터 앱 이름으로 거르지 않음). */
 public class NotiListener extends NotificationListenerService {
 
     private static long lastSeenSaved;

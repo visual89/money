@@ -25,9 +25,16 @@ public final class Parser {
             "카드|페이|은행|뱅크|금고|증권|네이버|NAVER|쿠팡|토스|월렛|Wallet|Pay|BANK|디지로카|로카|LOCA|우리WON|농협", Pattern.CASE_INSENSITIVE);
     // 문자·메신저 앱은 대화가 섞이므로 더 엄격하게 본다
     private static final Pattern MSG = Pattern.compile("메시지|Messages|문자|카카오톡|KakaoTalk", Pattern.CASE_INSENSITIVE);
-    private static final Pattern MSG_ACT = Pattern.compile("승인|출금|입금|결제");
     private static final Pattern MSG_WHO = Pattern.compile("카드|페이|은행|뱅크|Web발신|체크|농협|NH|신협|새마을|우체국");
-    private static final Pattern PAY = Pattern.compile("승인|결제|출금|사용|이용|구매|주문|체크");
+    // 보낸 이를 몰라도 '기계가 보낸 거래 문구'로 볼 만한 모양: 날짜·시각, 가린 이름(홍*동), 잔액·누적·일시불 등 (v1.7)
+    private static final Pattern MSG_FORM = Pattern.compile(
+            "\\d{1,2}/\\d{1,2}|\\d{1,2}:\\d{2}|[가-힣]\\*[가-힣]|\\d\\*{2,}|\\*{2,}\\d|잔액|누적|일시불|할부|\\[[^\\]]{2,12}\\]");
+    // 돈이 나가거나 들어온 것이 분명한 말 (v1.7: 모든 앱의 알림을 받으므로, 모르는 앱은 이 말이 있어야 적는다)
+    private static final Pattern STRONG = Pattern.compile("승인|결제|출금|입금|이체|송금|납부|인출|충전|환불|보냈|받았");
+    private static final Pattern PAY = Pattern.compile("승인|결제|출금|사용|이용|구매|주문|체크|이체|송금|납부|인출|충전|환불|보냈");
+    private static final Pattern INCOME = Pattern.compile("입금|환불|받았|님이[^\\n]{0,30}보냈");
+    // 모르는 앱(쇼핑·뉴스 등)의 가격·홍보 알림을 걸러 내는 말
+    private static final Pattern NEG_AD = Pattern.compile("할인|특가|세일|무료|%|장바구니|시세|주가|리뷰|후기|찜|추천|최저가|타임딜|핫딜");
     private static final Pattern NEG = Pattern.compile(
             "\\(광고\\)|\\[광고\\]|거절|실패|예정|명세서|인증번호|본인확인|청구|결제일|한도초과|이벤트|혜택|쿠폰|응모|당첨");
     private static final Pattern SKIP_BEFORE = Pattern.compile("누적|잔액|잔여|한도|포인트|적립|할인|쿠폰");
@@ -42,6 +49,8 @@ public final class Parser {
             // 문장형 알림(네이버·쿠팡 등)의 꾸밈말
             "주문하신|구매하신|결제하신|구매확정|주문완료|결제금액|결제완료|총\\s*금액|스마트스토어|상품[의이을]?(?=\\s|$)",
             "결제[가를]?", "완료", "출금", "입금", "사용", "이용", "체크", "구매", "주문",
+            "자동이체", "이체", "송금", "납부", "인출", "충전", "환불",
+            "보냈습니다|보냈어요|받았습니다|받았어요",
             "되었습니다|됐습니다|하였습니다|했습니다|입니다|습니다|되었어요|됐어요|했어요",
             "\\S*\\*\\S*", "\\S+님",
             "\\S*카드\\S*", "[가-힣A-Za-z]{2,6}\\d{4}",
@@ -50,17 +59,30 @@ public final class Parser {
     private static final Pattern PG = Pattern.compile("네이버페이|NAVER|네이버|쿠팡|카카오페이|토스|페이코|PAYCO|KG이니시스|이니시스|나이스|NICE|다날",
             Pattern.CASE_INSENSITIVE);
 
-    /** 이 앱(이름 label)이 보낸 알림을 결제 알림 후보로 볼지 */
+    /** 금융 앱(카드·은행·페이 등)으로 보이는 이름인지 — 이런 앱은 문구를 느슨하게, 모르는 앱은 엄격하게 읽는다 */
+    static boolean isFinApp(String label) {
+        return FIN.matcher(nz(label)).find();
+    }
+
+    static boolean isMessenger(String label) {
+        return MSG.matcher(nz(label)).find();
+    }
+
+    /**
+     * 이 알림을 거래 알림 후보로 볼지. v1.7부터 앱 이름 목록으로 거르지 않고 **모든 앱**의 알림을 받는다.
+     * 금액(○○원)이 없으면 버리고, 금융 앱이 아니면 돈이 오간 말(승인·결제·입금·출금·이체 등)이 있어야 한다.
+     * 문자·카카오톡은 가족·지인 대화("3만원 결제했어")가 적히지 않게, 웹 발신이거나 보낸 이가 전화번호·금융사 이름이거나
+     * 문구가 기계가 보낸 모양(날짜·시각·가린 이름·잔액 등)일 때만 받는다.
+     */
     public static boolean acceptSource(String label, String title, String text) {
-        label = nz(label);
-        if (MSG.matcher(label).find()) {
-            // 가족·지인 대화("카드 결제 3만원 했어")가 적히지 않게: 웹 발신 문자이거나, 보낸 이가 전화번호이거나,
-            // 보낸 이 이름에 카드·은행 등이 들어 있을 때만 (카카오톡 알림톡은 보낸 이가 'OO카드')
-            String ti = nz(title), tx = nz(text);
-            boolean official = tx.contains("Web발신") || ti.matches("[\\d\\-+ ()]{4,}") || MSG_WHO.matcher(ti).find();
-            return official && MSG_ACT.matcher(ti + " " + tx).find();
+        String ti = nz(title), tx = nz(text), all = ti + "\n" + tx;
+        if (!AMT.matcher(all).find()) return false;
+        if (isMessenger(label)) {
+            boolean official = tx.contains("Web발신") || ti.matches("[\\d\\-+ ()]{4,}") || MSG_WHO.matcher(ti).find()
+                    || MSG_FORM.matcher(tx).find();
+            return official && STRONG.matcher(all).find();
         }
-        return FIN.matcher(label).find();
+        return isFinApp(label) || STRONG.matcher(all).find();
     }
 
     public static Result parse(String label, String title, String text) {
@@ -71,9 +93,13 @@ public final class Parser {
         String all = title + "\n" + text;
 
         if (NEG.matcher(all).find()) { r.reason = "광고·안내 문구"; return r; }
-        boolean income = all.contains("입금") && !all.contains("승인");
+        // 금융 앱·문자·카카오톡이 아닌 모르는 앱(쇼핑·배달·뉴스 등)은 가격·홍보 알림이 많아 더 엄격하게 본다.
+        // 앱 이름이 없으면(설정 탭 '알림 문구 시험') 예전처럼 느슨하게 읽는다
+        boolean strict = !label.isEmpty() && !isFinApp(label) && !isMessenger(label);
+        if (strict && NEG_AD.matcher(all).find()) { r.reason = "광고·안내 문구"; return r; }
+        boolean income = INCOME.matcher(all).find() && !all.contains("승인");
         boolean cancel = all.contains("취소");
-        if (!income && !PAY.matcher(all).find()) { r.reason = "결제 문구 아님"; return r; }
+        if (!income && !(strict ? STRONG : PAY).matcher(all).find()) { r.reason = "결제 문구 아님"; return r; }
 
         // 금액: 누적·잔액 등 뒤에 붙은 금액은 건너뛰고 처음 나오는 금액
         Matcher m = AMT.matcher(all);
@@ -102,7 +128,7 @@ public final class Parser {
 
         String src = label + " " + title;
         if (all.contains("승인") || all.contains("체크카드")) r.method = "카드";
-        else if (src.contains("은행") || src.contains("뱅크") || all.contains("출금") || income) r.method = "계좌이체";
+        else if (src.contains("은행") || src.contains("뱅크") || all.contains("출금") || all.contains("이체") || all.contains("송금") || income) r.method = "계좌이체";
         else if (src.contains("카드")) r.method = "카드";
         else if (src.contains("페이") || src.toLowerCase().contains("pay")) r.method = "간편결제";
         return r;

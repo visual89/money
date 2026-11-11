@@ -340,7 +340,8 @@ public class Db extends SQLiteOpenHelper {
     // ───────────── 알림 자동 기록 ─────────────
     /** 알림 하나를 받아 결제면 가계부에 적는다. 돌려주는 값은 처리 결과(기록·중복·건너뜀 까닭). */
     public synchronized String capture(String pkg, String label, String title, String text, long ts) {
-        if (!Parser.acceptSource(label, title, text)) return "대상 앱 아님";
+        // v1.7: 앱을 가리지 않고 모든 알림을 본다. 금액·거래 문구가 없는 알림(대화·뉴스 등)은 기록에도 남기지 않는다
+        if (!Parser.acceptSource(label, title, text)) return "거래 알림 아님";
         String hash = Integer.toHexString((pkg + "|" + title + "|" + text).hashCode());
         SQLiteDatabase d = getWritableDatabase();
         try (Cursor c = d.rawQuery("SELECT 1 FROM notilog WHERE hash=?", new String[]{hash})) {
@@ -354,22 +355,29 @@ public class Db extends SQLiteOpenHelper {
             String raw = "[" + label + "] " + title + "\n" + text;
             long dupId = 0;
             String dupMemo = "";
-            try (Cursor c = d.rawQuery("SELECT id, memo FROM entries WHERE deleted=0 AND auto=1 AND kind=? AND amount=? AND created>=? ORDER BY id DESC LIMIT 1",
-                    new String[]{r.kind, String.valueOf(r.amount), String.valueOf(ts - DUP_WINDOW)})) {
-                if (c.moveToFirst()) {
+            // 같은 결제를 다른 앱이 또 알린 것인지 찾는다: 구분·금액이 같고 앞뒤 10분 안의 자동 기록 (v1.7)
+            // 단 같은 앱이 이미 알린 내역이면 진짜 두 번 결제한 것으로 보고 따로 적는다(같은 가게에서 같은 금액을 두 번)
+            String tag = "[" + label + "] ";
+            try (Cursor c = d.rawQuery("SELECT id, memo, raw FROM entries WHERE deleted=0 AND auto=1 AND kind=? AND amount=?"
+                            + " AND created BETWEEN ? AND ? ORDER BY id DESC",
+                    new String[]{r.kind, String.valueOf(r.amount), String.valueOf(ts - DUP_WINDOW), String.valueOf(ts + DUP_WINDOW)})) {
+                while (c.moveToNext()) {
+                    if (c.getString(2).contains(tag)) continue;
                     dupId = c.getLong(0);
                     dupMemo = c.getString(1);
+                    break;
                 }
             }
             if (dupId > 0) {
-                // 같은 결제의 두 번째 알림(예: 네이버 구매 알림 + 카드사 승인 알림). 한 건으로 두고 더 구체적인 사용처를 남긴다
+                // 같은 결제의 두 번째 알림(예: 카드사 문자 + 카드 앱 알림, 네이버 구매 알림 + 카드사 승인 알림).
+                // 새로 적지 않고 먼저 적은 한 건만 둔다. 먼저 것이 결제 대행사 이름뿐이면 더 구체적인 사용처로 바꾼다
                 if (Parser.isGateway(dupMemo) && !Parser.isGateway(r.merchant)) {
                     d.execSQL("UPDATE entries SET memo=?, category=?, raw=raw||?, updated=?, dirty=1 WHERE id=?",
                             new Object[]{r.merchant, r.kind.equals("out") ? categoryFor(r.merchant) : "결제취소", "\n\n" + raw, ts, dupId});
                 } else {
                     d.execSQL("UPDATE entries SET raw=raw||? WHERE id=?", new Object[]{"\n\n" + raw, dupId});
                 }
-                result = "중복(한 건으로 합침): " + r.amount + "원";
+                result = "중복(적지 않음, 먼저 적은 건과 같은 결제): " + r.amount + "원";
             } else {
                 ContentValues v = new ContentValues();
                 v.put("date", fmt("yyyy-MM-dd", ts));
