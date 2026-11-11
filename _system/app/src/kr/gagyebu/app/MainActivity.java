@@ -24,7 +24,7 @@ import java.util.Locale;
 
 /** 가계부 화면. 화면 자체는 assets/index.html(WebView)이고, 자료는 Bridge를 거쳐 폰 안 SQLite에 저장한다. */
 public class MainActivity extends Activity {
-    static final String VERSION = "1.7";
+    static final String VERSION = "1.8";
     private static final int REQ_SAVE = 1, REQ_OPEN = 2;
     private WebView web;
     private String pendingCsv;

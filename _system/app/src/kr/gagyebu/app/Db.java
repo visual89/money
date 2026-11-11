@@ -23,7 +23,7 @@ import java.util.UUID;
  */
 public class Db extends SQLiteOpenHelper {
     private static Db inst;
-    private static final long DUP_WINDOW = 10 * 60 * 1000L;     // 같은 금액 알림이 10분 안에 또 오면 같은 결제로 본다
+    private static final long DUP_WINDOW = 60 * 60 * 1000L;     // 같은 금액 알림을 다른 앱이 1시간 안에 또 보내면 같은 결제로 본다 (v1.8, 10분 → 1시간)
     private static final int LOG_KEEP = 150;
     static final String[] METHODS = {"카드", "현금", "계좌이체", "간편결제"};
     static final String[] CSV_HEAD = {"날짜", "시간", "구분", "분류", "금액", "결제수단", "내용", "사용자"};
@@ -355,7 +355,7 @@ public class Db extends SQLiteOpenHelper {
             String raw = "[" + label + "] " + title + "\n" + text;
             long dupId = 0;
             String dupMemo = "";
-            // 같은 결제를 다른 앱이 또 알린 것인지 찾는다: 구분·금액이 같고 앞뒤 10분 안의 자동 기록 (v1.7)
+            // 같은 결제를 다른 앱이 또 알린 것인지 찾는다: 구분·금액이 같고 앞뒤 1시간 안의 자동 기록 (v1.7, 간격은 v1.8에서 1시간)
             // 단 같은 앱이 이미 알린 내역이면 진짜 두 번 결제한 것으로 보고 따로 적는다(같은 가게에서 같은 금액을 두 번)
             String tag = "[" + label + "] ";
             try (Cursor c = d.rawQuery("SELECT id, memo, raw FROM entries WHERE deleted=0 AND auto=1 AND kind=? AND amount=?"
