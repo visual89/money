@@ -52,24 +52,6 @@ public class Bridge {
         return t == 0 ? "" : new java.text.SimpleDateFormat("MM.dd HH:mm", java.util.Locale.KOREA).format(new java.util.Date(t));
     }
 
-    /**
-     * 설정 탭 [시험 기록 넣기]: 가짜 카드 승인 알림 하나를 실제 알림과 똑같은 길(해석 → 중복 확인 → 저장 → 시트 올리기)로 처리한다.
-     * 결제 없이 '적히는지·시트에 올라가는지'를 확인하는 용도. 적힌 내역은 사용자가 눌러서 지우면 된다.
-     */
-    @JavascriptInterface
-    public String testCapture() {
-        return wrap(() -> {
-            long now = System.currentTimeMillis();
-            long amount = 1000 + (now / 1000 % 90) * 100;
-            String text = "홍*동님 " + String.format(java.util.Locale.US, "%,d", amount) + "원 일시불 승인 "
-                    + new java.text.SimpleDateFormat("MM/dd HH:mm:ss", java.util.Locale.KOREA).format(new java.util.Date(now))
-                    + " 시험가게 누적 " + String.format(java.util.Locale.US, "%,d", amount) + "원";
-            String result = db.capture("test", "시험카드", "시험카드 승인", text, now);
-            act.syncNow();
-            return new JSONObject().put("ok", true).put("result", result);
-        });
-    }
-
     @JavascriptInterface
     public String month(String ym) {
         return wrap(() -> db.month(ym));

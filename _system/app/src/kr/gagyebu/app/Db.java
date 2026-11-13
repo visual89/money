@@ -38,7 +38,7 @@ public class Db extends SQLiteOpenHelper {
     }
 
     private Db(Context c) {
-        super(c, "ledger.db", null, 2);
+        super(c, "ledger.db", null, 3);
     }
 
     @Override
@@ -69,6 +69,17 @@ public class Db extends SQLiteOpenHelper {
             d.execSQL("ALTER TABLE entries ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0");
             d.execSQL("UPDATE entries SET uid=lower(hex(randomblob(16))), dirty=1");
             d.execSQL("CREATE INDEX IF NOT EXISTS idx_entries_uid ON entries(uid)");
+        }
+        if (from < 3) {     // v2.1: 이미 적힌 자동 기록의 '카드'·'계좌이체'를 받은 알림 원본으로 카드사·은행 이름으로 바꾼다
+            long now = System.currentTimeMillis();
+            List<Object[]> fix = new ArrayList<>();
+            try (Cursor c = d.rawQuery("SELECT id, method, raw FROM entries WHERE deleted=0 AND auto=1 AND method IN ('카드','계좌이체') AND raw<>''", null)) {
+                while (c.moveToNext()) {
+                    String who = Parser.issuerFromRaw(c.getString(2), "카드".equals(c.getString(1)));
+                    if (!who.isEmpty()) fix.add(new Object[]{who, now, c.getLong(0)});
+                }
+            }
+            for (Object[] f : fix) d.execSQL("UPDATE entries SET method=?, updated=?, dirty=1 WHERE id=?", f);
         }
     }
 
@@ -127,6 +138,7 @@ public class Db extends SQLiteOpenHelper {
                 // 시트가 바뀌면 처음부터 다시 맞춘다: 내 내역 전부 올리고, 시트 내역 전부 받는다
                 put("sync_rev", "0");
                 getWritableDatabase().execSQL("UPDATE entries SET dirty=1");
+                if (!setting("cat_updated", "0").equals("0")) put("cat_dirty", "1");
             }
         } else if (key.equals("sync_key")) {
             if (value.length() > 60) throw new IllegalArgumentException("암호가 너무 깁니다");
@@ -300,6 +312,55 @@ public class Db extends SQLiteOpenHelper {
         } else {
             throw new IllegalArgumentException("알 수 없는 요청");
         }
+        // v2.1: 분류 목록도 시트로 공유한다 — 바꾼 쪽 목록 전체가 상대 폰에 그대로 적용된다
+        put("cat_updated", String.valueOf(System.currentTimeMillis()));
+        put("cat_dirty", "1");
+    }
+
+    /** 분류 목록 공유용 줄의 고유번호. 시트에는 '삭제' 표시가 된 한 줄로 올라가 옛 버전 앱·내역 목록에는 보이지 않는다 */
+    static final String CAT_UID = "cfg-categories";
+
+    private JSONObject categoryRow() throws JSONException {
+        JSONObject cats = new JSONObject();
+        cats.put("out", new JSONArray());
+        cats.put("in", new JSONArray());
+        try (Cursor c = getReadableDatabase().rawQuery("SELECT kind, name FROM categories ORDER BY sort, id", null)) {
+            while (c.moveToNext()) cats.getJSONArray(c.getString(0)).put(c.getString(1));
+        }
+        JSONObject o = new JSONObject();
+        o.put("uid", CAT_UID);
+        o.put("date", "2000-01-01");
+        o.put("time", "");
+        o.put("kind", "out");
+        o.put("category", "(분류 목록)");
+        o.put("method", "");
+        o.put("memo", cats.toString());
+        o.put("who", setting("who", ""));
+        o.put("amount", 0);
+        o.put("updated", Long.parseLong(setting("cat_updated", "0")));
+        o.put("deleted", 1);
+        return o;
+    }
+
+    /** 시트에서 받은 분류 목록으로 내 목록을 통째로 바꾼다 (더 나중에 바꾼 쪽이 남는다). 바뀌었으면 true */
+    private boolean applyCategories(SQLiteDatabase d, JSONObject r) {
+        long updated = r.optLong("updated", 0);
+        if (updated <= Long.parseLong(setting("cat_updated", "0"))) return false;
+        try {
+            JSONObject cats = new JSONObject(r.optString("memo"));
+            JSONArray out = cats.getJSONArray("out"), in = cats.getJSONArray("in");
+            if (out.length() == 0 && in.length() == 0) return false;
+            d.delete("categories", null, null);
+            for (int i = 0; i < out.length(); i++)
+                d.execSQL("INSERT OR IGNORE INTO categories(kind,name,sort) VALUES ('out',?,?)", new Object[]{cut(out.getString(i), 30), i});
+            for (int i = 0; i < in.length(); i++)
+                d.execSQL("INSERT OR IGNORE INTO categories(kind,name,sort) VALUES ('in',?,?)", new Object[]{cut(in.getString(i), 30), i});
+        } catch (JSONException e) {
+            return false;       // 시트에서 손으로 망가뜨린 줄
+        }
+        d.execSQL("INSERT OR REPLACE INTO settings(key,value) VALUES ('cat_updated',?)", new Object[]{String.valueOf(updated)});
+        d.execSQL("INSERT OR REPLACE INTO settings(key,value) VALUES ('cat_dirty','0')");
+        return true;
     }
 
     private void ensureCategory(SQLiteDatabase d, String kind, String name) {
@@ -376,7 +437,7 @@ public class Db extends SQLiteOpenHelper {
                 // 새로 적지 않고 먼저 적은 한 건에 합친다 (v2.0): 사용처는 가장 자세한 것을 앞에, 나머지는 괄호 안에.
                 // 카드 알림이 하나라도 있으면 결제수단은 카드. 분류는 합친 사용처로 다시 정하되 모르면 먼저 것을 둔다
                 String merged = Parser.mergeMerchant(dupMemo, r.merchant);
-                String method = "카드".equals(r.method) ? "카드" : dupMethod;
+                String method = Parser.mergeMethod(dupMethod, r.method);
                 if (!merged.equals(dupMemo) || !method.equals(dupMethod)) {
                     String cat = dupCat;
                     if (r.kind.equals("out") && !merged.equals(dupMemo)) {
@@ -439,6 +500,7 @@ public class Db extends SQLiteOpenHelper {
                 out.put(o);
             }
         }
+        if ("1".equals(setting("cat_dirty", "0"))) out.put(categoryRow());
         return out;
     }
 
@@ -449,6 +511,11 @@ public class Db extends SQLiteOpenHelper {
         try {
             for (int i = 0; i < rows.length(); i++) {
                 JSONObject r = rows.getJSONObject(i);
+                if (CAT_UID.equals(r.getString("uid"))) {
+                    if (String.valueOf(r.getLong("updated")).equals(setting("cat_updated", "0")))
+                        d.execSQL("INSERT OR REPLACE INTO settings(key,value) VALUES ('cat_dirty','0')");
+                    continue;
+                }
                 d.execSQL("UPDATE entries SET dirty=0 WHERE uid=? AND updated=?", new Object[]{r.getString("uid"), r.getLong("updated")});
             }
             d.setTransactionSuccessful();
@@ -468,6 +535,10 @@ public class Db extends SQLiteOpenHelper {
                 JSONObject r = rows.getJSONObject(i);
                 String uid = r.optString("uid");
                 if (uid.isEmpty()) continue;
+                if (uid.equals(CAT_UID)) {
+                    if (applyCategories(d, r)) changed++;
+                    continue;
+                }
                 String kind;
                 long amount;
                 String date;

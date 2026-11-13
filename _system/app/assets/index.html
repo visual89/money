@@ -124,15 +124,15 @@ if (!window.Android) window.Android = (() => {
   let seq = 1;
   const E = (d, time, kind, category, amount, method, memo, who, auto) =>
     ({ id: seq++, date: ym + "-" + String(d).padStart(2, "0"), time, kind, category, amount, method, memo, who, auto, source: auto ? "카드" : "", raw: auto ? "[○○카드] 승인\n" + amount.toLocaleString() + "원 일시불\n" + memo : "" });
-  let rows = [E(1, "09:00", "in", "월급", 3200000, "계좌이체", "11월 급여", "남편", 0), E(2, "12:31", "out", "식비", 9500, "카드", "김밥천국 본점", "남편", 1),
-    E(2, "19:05", "out", "생활용품", 32900, "카드", "쿠팡", "아내", 1), E(3, "08:12", "out", "카페·간식", 4700, "카드", "스타벅스 강남점", "남편", 1),
-    E(5, "18:40", "out", "식비", 68400, "카드", "이마트 평택점", "아내", 1), E(6, "10:00", "out", "교통", 55000, "카드", "GS칼텍스 주유소", "남편", 1),
-    E(7, "", "out", "경조사", 100000, "현금", "결혼식 축의금", "남편", 0), E(8, "21:15", "out", "미분류", 15000, "간편결제", "네이버페이", "아내", 1)];
+  let rows = [E(1, "09:00", "in", "월급", 3200000, "계좌이체", "11월 급여", "남편", 0), E(2, "12:31", "out", "식비", 9500, "현대카드", "김밥천국 본점", "남편", 1),
+    E(2, "19:05", "out", "생활용품", 32900, "우리카드", "쿠팡", "아내", 1), E(3, "08:12", "out", "카페·간식", 4700, "현대카드", "스타벅스 강남점", "남편", 1),
+    E(5, "18:40", "out", "식비", 68400, "롯데카드", "이마트 평택점", "아내", 1), E(6, "10:00", "out", "교통", 55000, "카드", "GS칼텍스 주유소", "남편", 1),
+    E(7, "", "out", "경조사", 100000, "현금", "결혼식 축의금", "남편", 0), E(7, "15:20", "out", "기타", 50000, "우리은행", "홍길동", "남편", 1), E(8, "21:15", "out", "미분류", 15000, "간편결제", "네이버페이", "아내", 1)];
   const J = JSON.stringify, cats = { out: ["식비", "카페·간식", "교통", "생활용품", "경조사", "기타", "미분류"], in: ["월급", "기타수입"] };
-  let budget = 1500000, who = "남편";
+  let who = "남편";
   return {
-    meta: () => J({ categories: cats, methods: ["카드", "현금", "계좌이체", "간편결제"], budget, who, count: rows.length, noti: false, version: "미리 보기", sync_url: "", sync_key: "", sync_last: "", pending: 0 }),
-    sync: () => J({ ok: true }), testCapture: () => J({ ok: true, result: "기록: 시험가게 1000원" }), installUpdate: () => J({ ok: true }),
+    meta: () => J({ categories: cats, methods: ["카드", "현금", "계좌이체", "간편결제"], who, count: rows.length, noti: false, version: "미리 보기", sync_url: "", sync_key: "", sync_last: "", pending: 0 }),
+    sync: () => J({ ok: true }), installUpdate: () => J({ ok: true }),
     checkUpdate: () => { setTimeout(() => onNativeUpdate({ version: "9.9", notes: "미리 보기용 예시", force: true }), 300); return J({ ok: true }); },
     month: m => J(rows.filter(r => r.date.startsWith(m)).sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time))),
     search: q => J(rows.filter(r => (r.memo + r.category).includes(q))),
@@ -141,7 +141,7 @@ if (!window.Android) window.Android = (() => {
     remove: id => { rows = rows.filter(r => r.id !== +id); return J({ ok: true }); },
     suggest: memo => { const k = memo.replace(/\s/g, ""), r = k.length >= 3 && rows.find(x => x.kind === "out" && x.category !== "미분류" && x.memo.replace(/\s/g, "").startsWith(k.slice(0, 4))); return J({ category: r ? r.category : "" }); },
     category: (k, n, a) => { if (a === "add") cats[k].push(n); else cats[k] = cats[k].filter(x => x !== n); return J({ ok: true }); },
-    setSetting: (k, v) => { if (k === "budget") budget = +String(v).replace(/,/g, "") || 0; else who = v; return J({ ok: true }); },
+    setSetting: (k, v) => { if (k === "who") who = v; return J({ ok: true }); },
     openNotiSettings: () => J({ ok: true }), openAppInfo: () => J({ ok: true }), exportCsv: () => J({ ok: true }), importCsv: () => J({ ok: true }),
   };
 })();
@@ -200,14 +200,6 @@ function statsHtml(s) {
     <div class="stat"><span>수입</span><b class="in">${won(s.in)}</b></div>
     <div class="stat"><span>남은 돈</span><b>${won(s.in - s.out)}</b></div></div>`;
 }
-function budgetHtml(out) {
-  const b = S.meta.budget;
-  if (!b) return "";
-  const p = Math.min(100, Math.round(out / b * 100)), left = b - out;
-  return `<div class="card"><div class="small muted" style="display:flex;justify-content:space-between;margin-bottom:6px">
-    <span>이번 달 예산 ${won(b)}원</span><span class="${left < 0 ? "out" : ""}">${left < 0 ? won(-left) + "원 초과" : won(left) + "원 남음"}</span></div>
-    <div class="bar ${left < 0 ? "over" : ""}"><i style="width:${p}%"></i></div></div>`;
-}
 function itemHtml(e, showDate) {
   const sub = [showDate ? e.date.slice(5).replace("-", ".") : "", e.time, e.method].filter(Boolean).join(" · ");
   return `<div class="item" data-id="${e.id}"><div class="l">
@@ -217,7 +209,7 @@ function itemHtml(e, showDate) {
 }
 function viewList() {
   const s = sums(S.entries);
-  let h = S.q ? "" : statsHtml(s) + budgetHtml(s.out);
+  let h = S.q ? "" : statsHtml(s);
   h += `<input class="search" id="q" placeholder="전체 기간에서 찾기 (가게·분류·사람)" value="${esc(S.q)}">`;
   if (S.q) h += `<div class="small muted" style="margin:0 4px 4px">전체 기간 검색 ${S.entries.length}건 · 지출 ${won(s.out)}원 · 수입 ${won(s.in)}원</div>`;
   if (!S.entries.length) return h + `<div class="empty">${S.q ? "찾는 내역이 없습니다." : "이 달에 적힌 내역이 없습니다.<br>결제 알림이 오면 자동으로 적히고,<br>아래 + 버튼으로 직접 적을 수도 있습니다."}</div>`;
@@ -243,7 +235,7 @@ function groupBy(list, key) {
 function viewStat() {
   const s = sums(S.entries), outs = S.entries.filter(e => e.kind === "out");
   const top = groupBy(outs, "memo").slice(0, 10);
-  return statsHtml(s) + budgetHtml(s.out)
+  return statsHtml(s)
     + `<div class="card"><h3>분류별 지출</h3>${rowsHtml(groupBy(outs, "category"), s.out)}</div>`
     + `<div class="card"><h3>사람별 지출</h3>${rowsHtml(groupBy(outs, "who"), s.out)}</div>`
     + `<div class="card"><h3>결제수단별 지출</h3>${rowsHtml(groupBy(outs, "method"), s.out)}</div>`
@@ -277,7 +269,6 @@ function viewSet() {
         <div class="small muted">${m.noti ? "모든 앱·문자의 결제·입출금 알림을 읽어 자동으로 적습니다. 같은 결제를 문자와 앱이 함께 알리면 한 번만 적습니다." : "'알림 접근'에서 가계부를 켜야 결제 알림이 자동으로 적힙니다."}</div></div></div>
       <div class="small muted" style="margin-top:8px">알림 수신: ${m.noti_seen ? "마지막으로 알림이 들어온 때 " + esc(m.noti_seen) : (m.noti_connected ? "연결됨 (" + esc(m.noti_connected) + ") · 아직 들어온 알림 없음" : "아직 연결된 적 없음")}</div>
       <div class="btns"><button class="btn ${m.noti ? "" : "pri"}" data-act="noti">알림 접근 설정 열기</button><button class="btn" data-act="appinfo">앱 정보</button></div>
-      <div class="btns" style="margin-top:8px"><button class="btn" data-act="test-cap">시험 기록 넣기 (결제 없이 확인)</button></div>
       <div class="small muted" style="margin-top:8px">켜지지 않고 회색으로 막혀 있으면: [앱 정보] → 오른쪽 위 ⋮ → '제한된 설정 허용'을 누른 뒤 다시 켭니다.</div></div>
     <div class="card"><h3>구글 스프레드시트 공유</h3>
       <div class="status"><span class="dot ${m.sync_url ? "on" : ""}"></span><div style="flex:1"><b>${m.sync_url ? "연결됨" : "연결 안 됨"}</b>
@@ -287,9 +278,7 @@ function viewSet() {
       <div class="btns"><button class="btn" data-act="sync-save">저장</button><button class="btn ${m.sync_url ? "pri" : ""}" data-act="sync-now">지금 맞추기</button></div></div>
     <div class="card"><h3>내 이름</h3><div class="small muted" style="margin-bottom:8px">이 폰에서 적히는 내역에 붙는 이름입니다 (예: 남편, 아내).</div>
       <div style="display:flex;gap:8px"><input class="fld" id="who" maxlength="10" value="${esc(m.who)}" placeholder="이름"><button class="btn sm" data-act="who">저장</button></div></div>
-    <div class="card"><h3>한 달 예산</h3>
-      <div style="display:flex;gap:8px"><input class="fld" id="budget" inputmode="numeric" value="${m.budget ? won(m.budget) : ""}" placeholder="0 = 예산 없음"><button class="btn sm" data-act="budget">저장</button></div></div>
-    <div class="card"><h3>분류 관리</h3><div class="small muted" style="margin-bottom:8px">내역을 눌러 분류를 바꾸면 그 가게를 기억해, 다음부터 같은 곳·비슷한 이름(다른 지점 등)은 자동으로 그 분류로 적힙니다.</div><label>지출</label><div class="chips">${chips("out")}</div>
+    <div class="card"><h3>분류 관리</h3><div class="small muted" style="margin-bottom:8px">내역을 눌러 분류를 바꾸면 그 가게를 기억해, 다음부터 같은 곳·비슷한 이름(다른 지점 등)은 자동으로 그 분류로 적힙니다. 분류를 추가·삭제하면 시트로 공유하는 상대 폰의 분류 목록도 똑같이 바뀝니다.</div><label>지출</label><div class="chips">${chips("out")}</div>
       <div style="display:flex;gap:8px;margin-top:8px"><input class="fld" id="cat-out" maxlength="30" placeholder="새 지출 분류"><button class="btn sm" data-catadd="out">추가</button></div>
       <label>수입</label><div class="chips">${chips("in")}</div>
       <div style="display:flex;gap:8px;margin-top:8px"><input class="fld" id="cat-in" maxlength="30" placeholder="새 수입 분류"><button class="btn sm" data-catadd="in">추가</button></div></div>
@@ -303,8 +292,21 @@ function viewSet() {
 }
 
 // ───────── 입력 창 ─────────
+// 결제수단은 '현대카드'·'우리은행'처럼 카드사·은행 이름으로 적힌다. 입력 창에서는 묶음 단추 + 이름 칸으로 나눠 보여 준다
+function methodGroup(m) {
+  if (!m || S.meta.methods.includes(m)) return m || "카드";
+  return /카드/.test(m) ? "카드" : /페이|pay/i.test(m) ? "간편결제" : "계좌이체";
+}
+function formMethod(f) {
+  let n = (f.issuer || "").trim();
+  if (!n || (f.group !== "카드" && f.group !== "계좌이체")) return f.group;
+  if (f.group === "카드" && !n.includes("카드")) n += "카드";
+  return n.slice(0, 20);
+}
 function openForm(e) {
   S.form = e ? { ...e } : { id: 0, kind: "out", date: S.ym === todayStr().slice(0, 7) ? todayStr() : S.ym + "-01", amount: "", category: "", method: "카드", memo: "", raw: "" };
+  S.form.group = methodGroup(S.form.method);
+  S.form.issuer = S.form.method === S.form.group ? "" : S.form.method;
   drawForm();
   $("#shade").classList.add("on");
   if (!e) setTimeout(() => $("#f-amt") && $("#f-amt").focus(), 80);
@@ -323,7 +325,8 @@ function drawForm() {
     <label>${f.kind === "out" ? "어디에 썼나요" : "내용"}</label><input class="fld" id="f-memo" maxlength="100" value="${esc(f.memo)}" placeholder="${f.kind === "out" ? "가게 이름 · 내용" : "예) 11월 급여"}">
     <div class="two"><div><label>날짜</label><input class="fld" id="f-date" type="date" value="${esc(f.date)}"></div>
       <div><label>분류</label><select class="fld" id="f-cat">${cats.map(c => `<option ${c === f.category ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></div></div>
-    <label>결제수단</label><div class="seg" id="f-method" style="margin-bottom:0">${S.meta.methods.map(x => `<button data-method="${esc(x)}" class="${x === f.method ? "on" : ""}">${esc(x)}</button>`).join("")}</div>
+    <label>결제수단</label><div class="seg" id="f-method" style="margin-bottom:0">${S.meta.methods.map(x => `<button data-method="${esc(x)}" class="${x === f.group ? "on" : ""}">${esc(x)}</button>`).join("")}</div>
+    ${f.group === "카드" || f.group === "계좌이체" ? `<input class="fld" id="f-issuer" maxlength="20" style="margin-top:8px" value="${esc(f.issuer)}" placeholder="${f.group === "카드" ? "카드사 이름 (예: 현대카드) · 비우면 '카드'" : "은행 이름 (예: 우리은행) · 비우면 '계좌이체'"}">` : ""}
     ${rawHtml(f.raw)}
     <div class="btns">${f.id ? '<button class="btn del" data-act="del">삭제</button>' : ""}<button class="btn" data-act="close">취소</button><button class="btn pri" data-act="save">저장</button></div>`;
 }
@@ -333,6 +336,7 @@ function readForm() {
   f.memo = $("#f-memo").value;
   f.date = $("#f-date").value;
   f.category = $("#f-cat").value;
+  if ($("#f-issuer")) f.issuer = $("#f-issuer").value;
 }
 function closeForm() {
   $("#shade").classList.remove("on");
@@ -375,9 +379,6 @@ $("#main").addEventListener("input", ev => {
       q.focus();
       q.setSelectionRange(pos, pos);
     }), 300);
-  } else if (ev.target.id === "budget") {
-    const v = ev.target.value.replace(/[^\d]/g, "");
-    ev.target.value = v ? won(v) : "";
   }
 });
 $("#main").addEventListener("click", safe(ev => {
@@ -389,17 +390,16 @@ $("#main").addEventListener("click", safe(ev => {
     const k = b.dataset.catadd, name = $("#cat-" + k).value.trim();
     if (!name) return toast("분류 이름을 입력해 주세요");
     call("category", k, name, "add");
+    call("sync");
     return load();
   }
-  if (b.dataset.catdel) { call("category", b.dataset.catdel, b.dataset.name, "delete"); return load(); }
+  if (b.dataset.catdel) { call("category", b.dataset.catdel, b.dataset.name, "delete"); call("sync"); return load(); }
   const act = b.dataset.act;
-  if (act === "test-cap") { const r = call("testCapture"); toast(r.result + " → 내역 탭에서 확인하세요"); load(); }
-  else if (act === "update") call("installUpdate");
+  if (act === "update") call("installUpdate");
   else if (act === "upd-check") { toast("새 버전을 확인하는 중…"); call("checkUpdate"); }
   else if (act === "noti") call("openNotiSettings");
   else if (act === "appinfo") call("openAppInfo");
   else if (act === "who") { call("setSetting", "who", $("#who").value.trim()); toast("이름을 저장했습니다"); load(); }
-  else if (act === "budget") { call("setSetting", "budget", $("#budget").value); toast("예산을 저장했습니다"); load(); }
   else if (act === "sync-save" || act === "sync-now") {
     if (act === "sync-save" || $("#sync-url").value.trim() !== S.meta.sync_url || $("#sync-key").value.trim() !== S.meta.sync_key) {
       call("setSetting", "sync_url", $("#sync-url").value.trim());
@@ -437,7 +437,7 @@ $("#sheet").addEventListener("click", safe(ev => {
   const b = ev.target.closest("button");
   if (!b) return;
   if (b.dataset.kind) { readForm(); S.form.kind = b.dataset.kind; S.form.category = ""; return drawForm(); }
-  if (b.dataset.method) { readForm(); S.form.method = b.dataset.method; return drawForm(); }
+  if (b.dataset.method) { readForm(); if (S.form.group !== b.dataset.method) { S.form.group = b.dataset.method; S.form.issuer = ""; } return drawForm(); }
   const act = b.dataset.act;
   if (act === "close") return closeForm();
   if (act === "del") {
@@ -454,7 +454,7 @@ $("#sheet").addEventListener("click", safe(ev => {
     const f = S.form;
     if (!String(f.amount).replace(/[^\d]/g, "")) return toast("금액을 입력해 주세요");
     if (!f.date) return toast("날짜를 골라 주세요");
-    call("save", JSON.stringify({ id: f.id || 0, kind: f.kind, date: f.date, amount: String(f.amount), category: f.category, method: f.method, memo: f.memo }));
+    call("save", JSON.stringify({ id: f.id || 0, kind: f.kind, date: f.date, amount: String(f.amount), category: f.category, method: formMethod(f), memo: f.memo }));
     S.ym = f.date.slice(0, 7);
     S.q = "";
     closeForm();

@@ -131,7 +131,111 @@ public final class Parser {
         else if (src.contains("은행") || src.contains("뱅크") || all.contains("출금") || all.contains("이체") || all.contains("송금") || income) r.method = "계좌이체";
         else if (src.contains("카드")) r.method = "카드";
         else if (src.contains("페이") || src.toLowerCase().contains("pay")) r.method = "간편결제";
+        // v2.1: 카드·계좌이체는 뭉쳐 두지 않고 카드사·은행 이름으로 적는다 (모르면 '카드'·'계좌이체' 그대로)
+        if (r.method.equals("카드") || r.method.equals("계좌이체")) {
+            String who = issuer(label, title, text, r.method.equals("카드"));
+            if (!who.isEmpty()) r.method = who;
+        }
         return r;
+    }
+
+    // ───────────── 카드사·은행 이름 (v2.1) ─────────────
+    // {카드 이름, 은행 이름(없으면 ""), 문구에서 찾는 이름, 앱 이름에서만 찾는 말(없으면 "")}
+    private static final String[][] ISSUERS = {
+            {"현대카드", "", "현대", ""},
+            {"우리카드", "우리은행", "우리", ""},
+            {"롯데카드", "", "롯데", "디지로카|로카|LOCA"},
+            {"삼성카드", "", "삼성", "monimo|모니모"},
+            {"신한카드", "신한은행", "신한", ""},
+            {"국민카드", "국민은행", "KB국민|국민|KB|케이비", "스타뱅킹|리브"},
+            {"하나카드", "하나은행", "하나", "원큐"},
+            {"농협카드", "농협은행", "NH농협|농협|NH", "올원|콕뱅크"},
+            {"BC카드", "", "BC|비씨", "페이북|paybooc"},
+            {"씨티카드", "씨티은행", "씨티|citi", ""},
+            {"기업카드", "기업은행", "IBK기업|IBK|기업", "i-ONE|아이원"},
+            {"카카오뱅크카드", "카카오뱅크", "카카오뱅크|kakaobank", ""},
+            {"토스뱅크카드", "토스뱅크", "토스뱅크", "^토스$"},
+            {"케이뱅크카드", "케이뱅크", "케이뱅크|K뱅크|Kbank", ""},
+            {"SC제일카드", "SC제일은행", "SC제일|제일", ""},
+            {"새마을금고카드", "새마을금고", "새마을금고|새마을|MG", ""},
+            {"신협카드", "신협", "신협", ""},
+            {"우체국카드", "우체국", "우체국", ""},
+            {"수협카드", "수협은행", "수협", ""},
+            {"부산카드", "부산은행", "부산", ""},
+            {"경남카드", "경남은행", "경남", ""},
+            {"광주카드", "광주은행", "광주", ""},
+            {"전북카드", "전북은행", "전북", ""},
+            {"제주카드", "제주은행", "제주", ""},
+            {"iM뱅크카드", "iM뱅크", "iM뱅크|아이엠뱅크|대구", ""},
+            {"산업카드", "산업은행", "KDB산업|산업|KDB", ""},
+    };
+    private static final Pattern PAY_APP = Pattern.compile("월렛|Wallet|삼성\\s*페이|Samsung", Pattern.CASE_INSENSITIVE);
+
+    /**
+     * 알림에서 카드사(card=true) 또는 은행(card=false) 이름을 찾는다. 못 찾으면 "".
+     * 앱 이름을 가장 믿고(문자·카카오톡은 제외), 다음으로 제목, 본문 순으로 본다.
+     * '우리'·'하나'처럼 흔한 말은 뒤에 카드·체크·은행이 붙거나 카드번호·[ ]와 함께 있을 때만 인정한다(가게 이름 오인식 방지).
+     */
+    public static String issuer(String label, String title, String text, boolean card) {
+        String lb = isMessenger(label) ? "" : nz(label);
+        String sfx = card ? "(?:WON)?\\s*(?:카드|체크)" : "(?:WON)?\\s*(?:은행|뱅크|뱅킹|bank)";
+        String hit = issuerIn(lb, sfx, card);
+        if (!hit.isEmpty()) return hit;
+        if (!lb.isEmpty() && !PAY_APP.matcher(lb).find()) {     // 앱 이름은 이름만 있어도 인정 (예: '우리WON뱅킹'의 체크카드 승인)
+            for (String[] b : ISSUERS) {
+                String name = card ? b[0] : b[1];
+                if (name.isEmpty()) continue;
+                if (Pattern.compile(b[3].isEmpty() ? b[2] : b[2] + "|" + b[3], Pattern.CASE_INSENSITIVE).matcher(lb).find()) return name;
+            }
+        }
+        hit = issuerIn(nz(title), sfx, card);
+        if (!hit.isEmpty()) return hit;
+        hit = issuerIn(nz(text), sfx, card);
+        if (!hit.isEmpty()) return hit;
+        // 본문 머리: '우리(1234)승인', '신한 1234', '[KB]', (은행) '농협 출금'
+        String all = nz(title) + "\n" + nz(text);
+        for (String[] b : ISSUERS) {
+            String name = card ? b[0] : b[1];
+            if (name.isEmpty()) continue;
+            String n = "(?:" + b[2] + ")";
+            String p = "(?:^|[\\s\\[\\(])" + n + "\\s*[\\(\\[]?[\\d*]{3,}|\\[" + n + "\\]" + (card ? "" : "|(?:^|[\\s\\[\\(])" + n + "\\s*(?:입출금|입금|출금)");
+            if (Pattern.compile(p, Pattern.CASE_INSENSITIVE).matcher(all).find()) return name;
+        }
+        return "";
+    }
+
+    private static String issuerIn(String s, String sfx, boolean card) {
+        if (s.isEmpty()) return "";
+        for (String[] b : ISSUERS) {
+            String name = card ? b[0] : b[1];
+            if (name.isEmpty()) continue;
+            if (s.contains(name) || Pattern.compile("(?:" + b[2] + ")" + sfx, Pattern.CASE_INSENSITIVE).matcher(s).find()) return name;
+        }
+        return "";
+    }
+
+    /** 합쳐진 알림 원본(raw: "[앱 이름] 제목\n본문" 이 "\n\n"으로 이어짐)에서 카드사·은행 이름을 찾는다 — 옛 내역 고치기용 */
+    public static String issuerFromRaw(String raw, boolean card) {
+        for (String seg : nz(raw).split("\\n\\n(?=\\[)")) {
+            Matcher m = Pattern.compile("(?s)^\\[([^\\]]*)\\] ([^\\n]*)\\n?(.*)$").matcher(seg);
+            if (!m.matches()) continue;
+            String who = issuer(m.group(1), m.group(2), m.group(3), card);
+            if (!who.isEmpty()) return who;
+        }
+        return "";
+    }
+
+    public static boolean isCard(String method) {
+        return nz(method).contains("카드");
+    }
+
+    /** 같은 결제의 알림을 합칠 때 결제수단: 카드 알림이 있으면 카드(카드사 이름을 아는 쪽), 이체는 은행 이름을 아는 쪽 */
+    public static String mergeMethod(String old, String neu) {
+        old = nz(old);
+        neu = nz(neu);
+        if (isCard(neu)) return isCard(old) && !old.equals("카드") ? old : neu;
+        if (old.equals("계좌이체") && !neu.isEmpty() && !neu.equals("현금") && !neu.equals("간편결제")) return neu;
+        return old;
     }
 
     /** 문구에서 금액·날짜·카드 이름 등을 지우고 남는 가장 긴 덩어리를 사용처로 본다 */
