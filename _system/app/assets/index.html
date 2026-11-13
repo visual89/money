@@ -192,7 +192,8 @@ function render() {
   document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.t === S.tab));
   const upd = S.update ? `<div class="card" style="border-color:var(--accent)"><div class="status"><div style="flex:1"><b>새 버전 ${esc(S.update.version)}이 나왔습니다</b>
     <div class="small muted">${esc(S.update.notes || "")}</div></div><button class="btn pri sm" data-act="update">업데이트</button></div></div>` : "";
-  $("#main").innerHTML = upd + { list: viewList, stat: viewStat, year: viewYear, set: viewSet }[S.tab]();
+  // 설정 탭에서는 [업데이트]를 맨 아래 '앱 업데이트' 칸 안에 보여 준다 ([업데이트 확인] 단추 바로 아래)
+  $("#main").innerHTML = (S.tab === "set" ? "" : upd) + { list: viewList, stat: viewStat, year: viewYear, set: viewSet }[S.tab]();
 }
 function statsHtml(s) {
   return `<div class="stats">
@@ -287,7 +288,9 @@ function viewSet() {
       <div class="btns"><button class="btn" data-act="exp-month">이번 달 내보내기</button><button class="btn" data-act="exp-all">전체 내보내기</button></div>
       <div class="btns" style="margin-top:8px"><button class="btn" data-act="imp">가져오기</button></div></div>
     <div class="card"><h3>앱 업데이트</h3><div class="status"><div style="flex:1"><b>지금 버전 ${esc(m.version || "")}</b>
-      <div class="small muted">앱을 열 때 새 버전을 자동으로 확인하고, 있으면 맨 위에 [업데이트] 버튼이 뜹니다.</div></div><button class="btn sm" data-act="upd-check">업데이트 확인</button></div></div>
+      <div class="small muted">앱을 열 때 새 버전을 자동으로 확인하고, 있으면 [업데이트] 버튼이 뜹니다 (이 화면에서는 바로 아래).</div></div><button class="btn sm" data-act="upd-check">업데이트 확인</button></div>
+      ${S.update ? `<div class="status" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)"><div style="flex:1"><b>새 버전 ${esc(S.update.version)}이 나왔습니다</b>
+        <div class="small muted">${esc(S.update.notes || "")}</div></div><button class="btn pri sm" data-act="update">업데이트</button></div>` : ""}</div>
     <div class="small muted" style="text-align:center">가계부 ${esc(m.version || "")} · 내역 ${won(m.count)}건 · ${m.sync_url ? "자료는 이 폰과 내 구글 시트에 저장됩니다" : "자료는 이 폰 안에만 저장됩니다"}</div>`;
 }
 
